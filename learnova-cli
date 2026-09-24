@@ -1,0 +1,3 @@
+#!/bin/sh
+# learnova-cli POSIX 薄入口
+exec python3 "$(dirname "$0")/scripts/learnova.py" "$@"
