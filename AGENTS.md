@@ -6,12 +6,13 @@ Learnova 技能社区的分发工具（learnova-cli），以 agent skill 形式�
 
 改动任何代码前，按序阅读：
 
+0. `internal/plan.md`（**如存在**）— 决策背景、分阶段实施计划、开放问题；本地文件，已排除出版本库，克隆环境不存在属正常
 1. `docs/cli-spec.md` — 行为规范：命令面、配置、agent 适配、遥测、发布链路
 2. `docs/architecture.md` — 实现架构：命令层、输出契约、数据源抽象、安装引擎、错误模型
 3. `docs/mirror-spec.md` — 镜像仓规范：目录布局、index.json schema、同步约定
 4. `docs/maintenance.md` — 维护手册：加新功能的步骤与规则
 
-执行必须与设计文档一致；发现不一致先停下向维护者确认，不擅自偏离。
+docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接下来做什么」。执行必须与设计文档一致；发现不一致先停下向维护者确认，不擅自偏离。
 
 ## 开发进度
 
@@ -41,4 +42,4 @@ Learnova 技能社区的分发工具（learnova-cli），以 agent skill 形式�
 | `scripts/sources/` | 数据源协议与实现、回退链 |
 | `scripts/engine.py` | 安装引擎（文件操作唯一入口） |
 | `scripts/store.py` | 本地 JSON 读写 |
-| `spec/` | 本地实施记录，已排除出版本库，不存在属正常 |
+| `internal/` | 本地实施记录，已排除出版本库，不存在属正常 |

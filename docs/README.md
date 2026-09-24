@@ -15,3 +15,4 @@ Learnova 技能社区的分发工具，面向使用个人 agent（Claude Code、
 | [cli-spec.md](cli-spec.md) | CLI 规范：命令面、配置与本地存储、agent 适配、检索与遥测、发布链路 | CLI 开发者、使用者 |
 | [architecture.md](architecture.md) | 实现架构：命令层、输出契约、数据源抽象、安装引擎、错误模型 | CLI 开发者 |
 | [maintenance.md](maintenance.md) | 维护手册：加新命令/agent/数据源的步骤、契约变更规则、错误码登记 | CLI 开发者 |
+| [ci.md](ci.md) | CI 设计：测试分层、fixture、变量清单、流水线（实施向） | CI 实施者 |

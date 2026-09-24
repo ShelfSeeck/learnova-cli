@@ -61,4 +61,4 @@
 - `core/` 纯逻辑必须有单测；命令层用假注入测；不测真实网络。
 - 提交前：`uv run --with pytest python -m pytest tests/ -q`。
 - commit message 用英文，前缀 `feat:` / `fix:` / `docs:` / `test:` / `chore:`。
-- `spec/` 为本地目录，已通过 `.git/info/exclude` 排除；克隆新环境后如需保留该约定，重新执行 `echo "/spec/" >> .git/info/exclude`。
+- `internal/` 为本地目录，已通过 `.git/info/exclude` 排除；克隆新环境后如需保留该约定，重新执行 `echo "/internal/" >> .git/info/exclude`。
