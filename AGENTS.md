@@ -17,7 +17,7 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 ## 开发进度
 
 - [x] 设计文档（cli-spec / mirror-spec / architecture）+ 按架构的 scripts 骨架
-- [ ] M1 镜像链路：镜像仓初始化 + 同步脚本 + index.json 生成（主项目侧）
+- [ ] M1 镜像链路：`mirror/` producer 核心已实现并通过本地/生产快照验证；待初始化正式镜像仓并部署调度
 - [x] M2 CLI 核心：MirrorSource、engine.install/uninstall、install/uninstall/upgrade 命令
 - [ ] M3 账号与发布：login/publish/status、遥测、BackendSource、resolver 降级链、init
 - [ ] M4 发布：GitHub 建仓、`npx skills add` 验证、PowerShell 实测
@@ -43,4 +43,6 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 | `skills/learnova-cli/scripts/sources/` | 数据源协议与实现、回退链 |
 | `skills/learnova-cli/scripts/engine.py` | 安装引擎（文件操作唯一入口） |
 | `skills/learnova-cli/scripts/store.py` | 本地 JSON 读写 |
+| `mirror/` | 运维侧 one-shot 镜像 producer；读取 Learnova 权威数据并生成 Git mirror，不进入 npx skills 分发包 |
+| `tests/test_mirror_sync.py` | producer 端到端测试：临时 SQLite + archive + 真实 Git repo |
 | `internal/` | 本地实施记录，已排除出版本库，不存在属正常 |

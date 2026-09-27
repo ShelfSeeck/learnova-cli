@@ -25,6 +25,23 @@
 2. 在 `sources/resolver.py` 注册并明确其在回退链中的位置。
 3. 更新 `docs/architecture.md` §3 与 `docs/cli-spec.md` §5 检索策略。
 
+## 修改镜像生产端
+
+镜像生产端在 `mirror/`，不属于 `skills/learnova-cli/` 的用户侧安装包，也不放进 Learnova 主仓。
+
+- `source.py` 只读 Learnova SQLite 与社区归档。
+- `repository.py` 收敛 Git 工作树、commit、历史恢复与 push。
+- `index.py` 负责 `index.json` 生成。
+- `sync.py` 只负责 one-shot 编排和配置入口，不实现常驻调度循环。
+
+改动 producer 时至少运行：
+
+```bash
+python -m unittest tests.test_mirror_sync -v
+```
+
+测试使用临时 SQLite、临时归档和真实临时 Git repo，不依赖生产服务器。涉及 Git 历史模型或 index schema 的改动，先更新 `mirror-spec.md`。
+
 ## 修改输出契约
 
 - JSON 字段、error code、退出码发布后**只增不改不删**。必须变更时，提升 schema 版本并在 `docs/cli-spec.md` 中注明迁移说明。
@@ -72,6 +89,6 @@
 ## 测试与提交
 
 - `core/` 纯逻辑必须有单测；端到端走 T1（本地 stub + 临时目录），不测真实网络。
-- 提交前：`python -m unittest discover tests -v`（T0）；`python tests/t1_mirror_flow.py`（T1）。
+- 提交前：`python -m unittest discover tests -v`（T0 + producer）；`python tests/t1_mirror_flow.py`（T1）。
 - commit message 用英文，前缀 `feat:` / `fix:` / `docs:` / `test:` / `chore:`。
 - `internal/` 为本地目录，已通过 `.git/info/exclude` 排除；克隆新环境后如需保留该约定，重新执行 `echo "/internal/" >> .git/info/exclude`。
