@@ -6,22 +6,34 @@ Learnova 技能社区的命令行入口，以 agent skill 形式分发。
 
 ## 安装
 
+`learnova-cli` 作为独立 Skill 放在 `skills/learnova-cli/`，推荐安装到用户级：
+
 ```bash
-npx skills add <owner>/learnova-cli@learnova-cli
+npx skills add https://git.nju.edu.cn/learnova/learnova-cli.git \
+  --skill learnova-cli \
+  --global
 ```
 
-安装后 agent 会按 SKILL.md 指引自动使用；也可手动运行：
+如只希望当前项目使用，去掉 `--global`。
+
+仓库也保留 GitHub remote，可使用：
 
 ```bash
-python scripts/learnova.py --help
+npx skills add ShelfSeeck/learnova-cli --skill learnova-cli --global
+```
+
+安装后 agent 会按 Skill 内的 `SKILL.md` 指引调用脚本。开发仓中也可直接运行：
+
+```bash
+python skills/learnova-cli/scripts/learnova.py --help
 ```
 
 ## 快速上手
 
 ```bash
-python scripts/learnova.py config set mirror_repo_url <镜像仓地址>
-python scripts/learnova.py search 代码审查
-python scripts/learnova.py install <技能名>
+python skills/learnova-cli/scripts/learnova.py config set mirror_repo_url <镜像仓地址>
+python skills/learnova-cli/scripts/learnova.py search 代码审查
+python skills/learnova-cli/scripts/learnova.py install <技能名>
 ```
 
 完整命令表、参数与默认行为见 [docs/cli-spec.md](docs/cli-spec.md)。

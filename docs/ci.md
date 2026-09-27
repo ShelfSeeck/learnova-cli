@@ -54,7 +54,7 @@ job: test（矩阵）            # T0 + T1，通过标准所在
     - uv 安装指定 Python（astral-sh/setup-uv + uv python install）
     - T0: python -m unittest discover tests -v
     - T1: python tests/t1_mirror_flow.py（内部起 stub、跑全流程命令）
-    - 仅 windows: pwsh 调用 learnova-cli.ps1 list 冒烟
+    - 仅 windows: pwsh 调用 skills/learnova-cli/learnova-cli.ps1 list 冒烟
 
 job: backend-integration     # T2，不阻塞
   needs: test

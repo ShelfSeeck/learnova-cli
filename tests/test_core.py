@@ -4,7 +4,8 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+RUNTIME = Path(__file__).resolve().parent.parent / "skills" / "learnova-cli" / "scripts"
+sys.path.insert(0, str(RUNTIME))
 
 from core import index, versions
 from core.frontmatter import parse_frontmatter

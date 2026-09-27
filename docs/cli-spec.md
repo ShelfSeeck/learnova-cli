@@ -6,7 +6,8 @@ Learnova CLI 的行为规范。实现架构（模块划分与设计模式）另�
 
 - Python 3.10+，纯标准库，零第三方运行时依赖。
 - 以 agent skill 形式分发（`npx skills` 安装），SKILL.md 指导 agent 调用脚本。
-- 入口：`scripts/learnova.py`；Windows 提供 PowerShell 薄入口，POSIX 提供 sh 薄入口。
+- 分发目录：`skills/learnova-cli/`。
+- 入口：`skills/learnova-cli/scripts/learnova.py`；Windows 提供 PowerShell 薄入口，POSIX 提供 sh 薄入口。
 - 脚本之间无隐式共享状态，必要信息通过 `~/.learnova/` 下的本地文件交换。
 
 ## 2. 命令面

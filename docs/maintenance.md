@@ -5,8 +5,8 @@
 ## 加一个新命令
 
 1. 在 `docs/cli-spec.md` §2 命令面中登记命令、参数与默认行为。
-2. 新建 `scripts/cli/commands/<name>.py`，实现 `register(sub)` 与 `handler(args, ctx) -> dict`。
-3. 在 `scripts/cli/commands/__init__.py` 的 `MODULES` 注册一行。
+2. 新建 `skills/learnova-cli/scripts/cli/commands/<name>.py`，实现 `register(sub)` 与 `handler(args, ctx) -> dict`。
+3. 在 `skills/learnova-cli/scripts/cli/commands/__init__.py` 的 `MODULES` 注册一行。
 4. handler 内：解析参数 → 经 `sources/resolver.py` 取数据（如需要）→ 经 `engine.py` 操作文件（如需要）→ 返回 dict。
 5. 需要新 error code 时，在本文「错误码登记表」登记。
 6. 加测试：命令逻辑用假 ctx + FakeSource 注入测；纯逻辑抽到 `core/` 单测。
@@ -15,13 +15,13 @@
 
 ## 加一个新 agent 适配
 
-1. 在 `scripts/agents.py` 的 `AGENTS` 表中加一行（`detect_dir` / `global_skills` / `project_skills`）。
+1. 在 `skills/learnova-cli/scripts/agents.py` 的 `AGENTS` 表中加一行（`detect_dir` / `global_skills` / `project_skills`）。
 2. 同步更新 `docs/cli-spec.md` §3 的映射表。
 3. 目标路径必须在真实环境实测确认后在 PR 描述中说明依据。
 
 ## 加一个新数据源
 
-1. 在 `scripts/sources/` 新建模块，实现 `SkillSource` 协议（`search` / `info` / `fetch`）。
+1. 在 `skills/learnova-cli/scripts/sources/` 新建模块，实现 `SkillSource` 协议（`search` / `info` / `fetch`）。
 2. 在 `sources/resolver.py` 注册并明确其在回退链中的位置。
 3. 更新 `docs/architecture.md` §3 与 `docs/cli-spec.md` §5 检索策略。
 

@@ -36,10 +36,11 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 
 | 路径 | 职责 |
 |---|---|
-| `scripts/learnova.py` | Router：参数解析、注册表分发、单点异常捕获 |
-| `scripts/cli/commands/` | 每命令一文件 |
-| `scripts/core/` | 纯逻辑零 IO（单测重点） |
-| `scripts/sources/` | 数据源协议与实现、回退链 |
-| `scripts/engine.py` | 安装引擎（文件操作唯一入口） |
-| `scripts/store.py` | 本地 JSON 读写 |
+| `skills/learnova-cli/SKILL.md` | 实际分发给 agent 的 Skill 说明 |
+| `skills/learnova-cli/scripts/learnova.py` | Router：参数解析、注册表分发、单点异常捕获 |
+| `skills/learnova-cli/scripts/cli/commands/` | 每命令一文件 |
+| `skills/learnova-cli/scripts/core/` | 纯逻辑零 IO（单测重点） |
+| `skills/learnova-cli/scripts/sources/` | 数据源协议与实现、回退链 |
+| `skills/learnova-cli/scripts/engine.py` | 安装引擎（文件操作唯一入口） |
+| `skills/learnova-cli/scripts/store.py` | 本地 JSON 读写 |
 | `internal/` | 本地实施记录，已排除出版本库，不存在属正常 |

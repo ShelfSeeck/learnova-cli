@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fixtures.gitlab_stub import MirrorStub
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CLI = REPO_ROOT / "scripts" / "learnova.py"
+CLI = REPO_ROOT / "skills" / "learnova-cli" / "scripts" / "learnova.py"
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "mirror"
 
 

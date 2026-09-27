@@ -74,28 +74,32 @@ install / list / uninstall / upgrade 共享 `engine.py`，命令只做薄壳（�
 ## 模块布局
 
 ```
-scripts/
-├── learnova.py          # Router：argparse + 注册表 + 单点异常捕获
-├── cli/
-│   ├── context.py       # CliContext（注入接缝）
-│   ├── presenter.py     # dict → json/人类可读；错误格式化
-│   └── commands/        # 每命令一文件：register() + handler()
-├── core/                # 纯逻辑零 IO
-│   ├── errors.py
-│   ├── frontmatter.py
-│   ├── skill.py
-│   ├── versions.py
-│   └── index.py
-├── sources/
-│   ├── base.py          # SkillSource 协议
-│   ├── backend.py
-│   ├── mirror.py
-│   └── resolver.py      # 回退链
-├── agents.py            # Registry：映射数据表 + 检测
-├── engine.py            # 安装引擎
-├── store.py             # ~/.learnova 读写
-├── net.py               # urllib 封装（避免与标准库 http 同名遮蔽）
-└── telemetry.py
+skills/learnova-cli/
+├── SKILL.md             # npx skills 分发入口
+├── learnova-cli         # POSIX 薄入口
+├── learnova-cli.ps1     # PowerShell 薄入口
+└── scripts/
+    ├── learnova.py      # Router：argparse + 注册表 + 单点异常捕获
+    ├── cli/
+    │   ├── context.py   # CliContext（注入接缝）
+    │   ├── presenter.py # dict → json/人类可读；错误格式化
+    │   └── commands/    # 每命令一文件：register() + handler()
+    ├── core/            # 纯逻辑零 IO
+    │   ├── errors.py
+    │   ├── frontmatter.py
+    │   ├── skill.py
+    │   ├── versions.py
+    │   └── index.py
+    ├── sources/
+    │   ├── base.py      # SkillSource 协议
+    │   ├── backend.py
+    │   ├── mirror.py
+    │   └── resolver.py  # 回退链
+    ├── agents.py        # Registry：映射数据表 + 检测
+    ├── engine.py        # 安装引擎
+    ├── store.py         # ~/.learnova 读写
+    ├── net.py           # urllib 封装（避免与标准库 http 同名遮蔽）
+    └── telemetry.py
 ```
 
 ## 测试策略

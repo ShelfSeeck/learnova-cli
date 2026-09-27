@@ -19,7 +19,7 @@ Learnova 后端
         │
         │ git push
         ▼
-GitLab 镜像仓
+远程 Git 镜像仓
   一个仓库存放多个 Skill
         │
         │ HTTP 只读
@@ -31,13 +31,13 @@ learnova-cli
 维护时只需记住两点：
 
 - Learnova 后端保存社区的正式数据。
-- GitLab 镜像仓是自动生成的分发副本，不应手工修改 Skill 文件和 `index.json`。
+- 远程 Git 镜像仓是自动生成的分发副本，不应手工修改 Skill 文件和 `index.json`。
 
 ## 2. 第一次配置顺序
 
-### 2.1 创建 GitLab 镜像项目
+### 2.1 创建远程 Git 镜像仓
 
-创建一个镜像项目，例如：
+在可长期访问的 Git 托管服务上创建一个镜像仓，例如：
 
 ```text
 <group>/skills-mirror
@@ -56,6 +56,18 @@ skills-mirror/
 
 不要为每个 Skill 单独创建仓库。
 
+第一次创建时建议使用**空仓库**：不要预先生成 README、LICENSE、`.gitignore` 等文件。
+首个有效 commit 应由镜像初始化/同步流程产生，而不是人工在网页端补文件。
+
+如果当时还没有任何 APPROVED Skill，首个 commit 至少可以包含：
+
+```text
+SPEC.md
+index.json
+```
+
+其中 `index.json` 是合法的空索引。后续 Skill 目录仍全部由同步程序生成。
+
 基础设置：
 
 | 项目 | 要求 |
@@ -64,9 +76,11 @@ skills-mirror/
 | Force push | 关闭 |
 | Skill 布局 | 一个 Skill 一个目录 |
 | 人工修改 Skill / index.json | 禁止 |
-| 读取权限 | CLI 所在环境能够无需 GitLab 登录访问 raw 文件和 archive API |
+| 读取权限 | CLI 所在环境能够无需额外登录读取镜像所需的 raw 文件和历史版本内容 |
 
-当前 CLI 不保存 GitLab 用户凭证。因此镜像如果必须登录才能读取，CLI 将无法使用。现阶段应保证目标用户可以匿名读取镜像。
+当前 CLI 不保存镜像仓读取凭证。因此镜像如果必须登录才能读取，CLI 将无法使用。现阶段应保证目标用户可以匿名读取镜像。
+
+仓库本身不要求必须托管在 GitLab。需要注意的是，**当前 CLI 获取历史版本的实现使用 GitLab-compatible archive API**。如果以后换用不兼容该 API 的 Git 托管服务，需要同时增加对应的历史版本下载适配。
 
 ### 2.2 保护 main 分支
 
@@ -79,7 +93,7 @@ skills-mirror/
 - 镜像同步程序可以正常 push。
 - 维护者在同步程序故障时仍可以恢复仓库。
 
-GitLab 的具体角色名称可能随实例配置不同。设置后要实际验证一次同步身份的 push 权限，不只看页面配置。
+不同 Git 托管服务的分支保护和角色名称不同。设置后要实际验证一次同步身份的 push 权限，不只看页面配置。
 
 ### 2.3 创建同步程序的 Git 凭证
 
@@ -91,7 +105,7 @@ commit
 push
 ```
 
-推荐选择一种：
+凭证形式取决于所用 Git 托管服务。对于 GitLab-compatible 服务，推荐选择一种：
 
 1. **Project Access Token**：限定在镜像项目，授予 `write_repository`。
 2. **可写 Deploy Key**：使用 SSH，并在分支规则中允许该 Key 写入 `main`。
@@ -119,7 +133,7 @@ push
 
 ## 3. 同步程序负责什么
 
-同步程序的目标是让 GitLab 镜像等于当前需要公开分发的 APPROVED Skill 集合。
+同步程序的目标是让远程 Git 镜像等于当前需要公开分发的 APPROVED Skill 集合。
 
 一次同步：
 
@@ -186,13 +200,13 @@ skill-a/
 
 镜像同步链路完成后，至少人工跑一次真实链路。
 
-### GitLab
+### 远程 Git 仓库
 
 确认：
 
 - `main` 已保护，force push 已关闭。
 - 同步身份可以 push。
-- CLI 所在环境无需 GitLab 登录即可读取镜像。
+- CLI 所在环境无需额外登录即可读取镜像。
 - 仓库里没有 token、密码或私钥。
 
 ### 同步链路
@@ -208,7 +222,7 @@ Skill 目录出现
         ↓
 index.json 出现 community_id / dir / version / commit
         ↓
-GitLab 产生同步 commit
+远程仓库产生同步 commit
 ```
 
 然后：
@@ -222,11 +236,11 @@ GitLab 产生同步 commit
 使用真实镜像地址执行：
 
 ```bash
-python scripts/learnova.py config set mirror_repo_url <mirror-url>
-python scripts/learnova.py search <测试关键词>
-python scripts/learnova.py info <skill-dir>
-python scripts/learnova.py install <skill-dir>
-python scripts/learnova.py list
+python skills/learnova-cli/scripts/learnova.py config set mirror_repo_url <mirror-url>
+python skills/learnova-cli/scripts/learnova.py search <测试关键词>
+python skills/learnova-cli/scripts/learnova.py info <skill-dir>
+python skills/learnova-cli/scripts/learnova.py install <skill-dir>
+python skills/learnova-cli/scripts/learnova.py list
 ```
 
 全部成功后，镜像分发链路才算真正可用。
@@ -235,7 +249,7 @@ python scripts/learnova.py list
 
 | 情况 | 处理方式 |
 |---|---|
-| 新 Skill / 新版本审核通过 | 等待同步，不手工改 GitLab |
+| 新 Skill / 新版本审核通过 | 等待同步，不手工改镜像仓 |
 | Skill 下架 | 由同步程序处理 |
 | 同步失败 | 查看日志，修复原因后重新同步 |
 | Git 凭证到期 | 更换服务器凭证并重新验证 push |
@@ -260,7 +274,7 @@ python scripts/learnova.py list
 
 开始实现和部署同步程序前，确认：
 
-- [ ] 已创建一个 GitLab monorepo 镜像项目。
+- [ ] 已创建一个空的 monorepo 镜像仓。
 - [ ] 默认分支为 `main`，force push 已关闭。
 - [ ] 已配置 `main` 的写入权限。
 - [ ] CLI 环境可以匿名读取镜像。

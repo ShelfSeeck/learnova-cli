@@ -9,16 +9,18 @@ Learnova 技能社区的分发工具。当前通过 Git 镜像提供检索与安
 
 ## 使用方式
 
-所有功能通过 Python 脚本调用，一律使用 `--json` 获取结构化输出：
+当前 `SKILL.md` 所在目录就是 learnova-cli 的运行时根目录。执行脚本时始终以这个目录为基准，不要假设当前 shell 已切换到 Skill 目录。
+
+所有功能通过 Python 脚本调用，一律使用 `--json` 获取结构化输出。下面的 `<skill-dir>` 指当前 `SKILL.md` 所在目录：
 
 ```bash
-python "{SKILL_DIR}/scripts/learnova.py" <命令> [参数] --json
+python "<skill-dir>/scripts/learnova.py" <命令> [参数] --json
 ```
 
 Windows PowerShell 环境使用薄入口：
 
 ```powershell
-& "{SKILL_DIR}/learnova-cli.ps1" <命令> [参数] --json
+& "<skill-dir>/learnova-cli.ps1" <命令> [参数] --json
 ```
 
 ## 命令一览

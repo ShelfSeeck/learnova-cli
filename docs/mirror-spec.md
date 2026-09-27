@@ -1,6 +1,6 @@
 # 镜像仓规范
 
-Learnova 技能社区的 git 镜像，托管于校内 GitLab。承担三个职责：社区内容的备份、第三方 agent 的分发源、基于 git 历史的版本管理。
+Learnova 技能社区的 git 镜像，托管于可长期访问的远程 Git 仓库。承担三个职责：社区内容的备份、第三方 agent 的分发源、基于 git 历史的版本管理。
 
 本文档是该仓库结构与生成行为的唯一规范。仓内所有内容**由同步脚本生成，禁止手工修改**。
 
@@ -76,7 +76,7 @@ Learnova 技能社区的 git 镜像，托管于校内 GitLab。承担三个职�
 ## 4. 版本管理
 
 - 版本历史 = git 提交历史。diff、blame、回滚直接使用 git 能力，不另设版本目录。
-- 安装指定旧版本：按 `versions[].commit` 调 GitLab archive API（`GET /projects/:id/repository/archive.tar.gz?sha=<commit>`），解压后取对应技能目录。
+- 安装指定旧版本：按 `versions[].commit` 获取该 commit 的仓库归档并取对应技能目录。当前 CLI 使用 GitLab-compatible archive API 实现；其他托管服务需提供等价适配。
 - 同一版本号内容不会变化（由社区审核流保证），升级判断只比较版本号。
 
 ## 5. 同步行为约定

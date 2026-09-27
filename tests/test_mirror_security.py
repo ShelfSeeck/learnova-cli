@@ -5,7 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+RUNTIME = Path(__file__).resolve().parent.parent / "skills" / "learnova-cli" / "scripts"
+sys.path.insert(0, str(RUNTIME))
 
 from core.errors import CliError
 from sources.mirror import _extract_skill
