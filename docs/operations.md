@@ -32,6 +32,7 @@ learnova-cli
 
 - Learnova 后端保存社区的正式数据。
 - 远程 Git 镜像仓是自动生成的分发副本，不应手工修改 Skill 文件和 `index.json`。
+- 镜像同步属于 learnova-cli 的分发基础设施。Learnova 当前只提供数据库与归档文件作为只读输入，不需要为镜像模型增加代码、字段或服务。
 
 ## 2. 第一次配置顺序
 
@@ -129,37 +130,172 @@ push
 - 凭证通过服务器安全配置提供，不写入工作目录。
 - 该目录损坏后可以直接重新 clone。
 
-实际目录、systemd unit 和环境变量名称等到实现同步程序时再确定，不提前形成无用约定。
+实际工作目录和环境变量名称在部署时确定；systemd unit 的推荐名称见后文，仓库文档不写死服务器绝对路径。
 
 ## 3. 同步程序负责什么
 
 同步程序的目标是让远程 Git 镜像等于当前需要公开分发的 APPROVED Skill 集合。
 
-一次同步：
+Learnova 服务器已经保存发布后的版本文件。同步程序应直接读取 Learnova 的权威数据库和对应的社区归档目录，不需要通过公开 HTTP API 再把 Skill 下载回来。
+
+同步程序属于 learnova-cli 仓库，但可以部署到任何同时满足以下条件的机器：
+
+- 能读取 Learnova 数据库。
+- 能读取 Learnova 的社区归档目录。
+- 能读写一个持久的镜像 Git 工作目录。
+- 能访问远程 Git 仓并完成 push。
+
+它不 import Learnova 后端代码，也不依赖 Learnova 的 Python 虚拟环境。建议在 learnova-cli 中保持独立目录：
 
 ```text
-读取 APPROVED Skill
+learnova-cli/
+├── skills/
+│   └── learnova-cli/          # npx skills 实际分发的用户侧运行时
+└── mirror/
+    ├── sync.py                # one-shot 同步入口
+    ├── source.py              # 读取数据库与 archived_skill
+    ├── repository.py          # Git 工作树与 commit/push
+    ├── index.py               # 生成和校验 index.json
+    └── deploy/                # 可选调度器模板，不属于核心运行逻辑
+```
+
+服务器另外准备一个独立工作目录：
+
+```text
+<mirror-workdir>/
+└── repo/     # 远程镜像仓的 clone
+```
+
+这个目录只是可重建的 Git 工作副本，不属于 Learnova 的权威业务数据。
+
+### 3.1 同步程序的运行边界
+
+同步程序本身是一个**短生命周期、幂等的 one-shot CLI**：
+
+```text
+启动
+→ 获取互斥锁
+→ 读取源数据
+→ 对账与生成 commit
+→ 可选 push
+→ 释放锁
+→ 退出
+```
+
+它不包含 `while true + sleep` 这类常驻循环，也不自己负责开机启动、重启策略或运行频率。这些职责交给外部调度器，因此同一个程序可以由 systemd timer、cron、Windows Task Scheduler、Kubernetes CronJob、CI 或人工命令调用。
+
+核心实现遵循以下约束：
+
+- Python 3.10+；尽量只使用标准库，与用户侧 CLI 保持一致。
+- 外部只要求存在 `git` 可执行文件。
+- 不调用 systemd、cron 或其他特定平台 API。
+- 不写死服务器用户、绝对路径、数据库位置或归档位置。
+- Git/SSH 凭证由运行环境提供；同步程序不接收私钥内容，也不把 token 写入工作目录。
+- 日志只写 stdout/stderr，由调用它的运行环境负责采集。
+- 重复执行必须安全；没有变化时不产生 commit，也不 push。
+- 同一个镜像工作目录同一时间只允许一个同步进程修改。
+
+为了兼容不同系统，互斥实现不依赖 Linux 专有的 `flock`。实现时使用跨平台的原子 lock 文件/目录，并保存足够的信息用于识别异常退出留下的过期锁。
+
+### 3.2 配置接口
+
+服务器差异全部通过参数或环境变量输入。预期核心参数如下：
+
+| 参数 | 环境变量 | 含义 |
+|---|---|---|
+| `--database` | `LEARNOVA_MIRROR_DATABASE` | Learnova SQLite 数据库路径 |
+| `--archive-root` | `LEARNOVA_MIRROR_ARCHIVE_ROOT` | `archived_skill` 根目录 |
+| `--repo` | `LEARNOVA_MIRROR_REPO` | 本地镜像 Git 工作目录 |
+| `--remote` | `LEARNOVA_MIRROR_REMOTE` | push remote，默认 `origin` |
+| `--branch` | `LEARNOVA_MIRROR_BRANCH` | 正式分支，默认 `main` |
+| `--dry-run` | — | 完成读取、对账与校验，但不修改 Git 工作树 |
+| `--no-push` | — | 允许生成本地 commit，但不 push |
+
+同一配置同时出现时，命令行参数优先于环境变量。凭证不属于这套配置接口，应直接使用 Git 原生能力，例如 SSH config、ssh-agent、Deploy Key、credential helper 或 CI secret 注入。
+
+手工执行形态例如：
+
+```bash
+python mirror/sync.py \
+  --database /path/to/project.db \
+  --archive-root /path/to/archived_skill \
+  --repo /path/to/mirror-workdir/repo
+```
+
+路径只是示例；同步程序不要求这些目录位于同一项目树或同一固定前缀。
+
+### 3.3 一轮同步怎么执行
+
+一轮同步可以只 push 一次，但会根据新版本数量产生多个 commit：
+
+```text
+读取 APPROVED 版本
         ↓
-确定稳定的 skill-dir
+从 index.json 和 Git 历史判断哪些版本已经镜像
         ↓
-与镜像工作区对账
+按稳定顺序处理每个新版本
         ↓
-新增 / 更新 / 删除已下架内容
+复制 archived_skill 中对应版本
+→ 更新 <skill-dir>/
+→ 创建内容 commit
+→ 保存 commit hash
         ↓
-重新生成 index.json
+删除当前已不应公开的 Skill 目录
+→ 如有变化创建状态 commit
         ↓
-校验
+根据数据库和已确定的 commit hash
+全量重新生成 index.json
         ↓
-commit
+创建 index commit
         ↓
 push main
 ```
 
-一次同步中的所有变更使用一个 commit。
+例如同一轮发现：
+
+```text
+foo 1.1 APPROVED
+foo 1.2 APPROVED
+bar 2.0 APPROVED
+```
+
+Git 历史会形成：
+
+```text
+commit A   foo 1.1
+commit B   foo 1.2
+commit C   bar 2.0
+commit D   update index.json
+```
+
+`index.json` 中保存：
+
+```text
+foo 1.1 → A
+foo 1.2 → B
+bar 2.0 → C
+```
+
+最后只需要把 A～D 一次性 push 到远程仓。
 
 同步失败不能影响 Learnova 的审核结果。修复问题后重新执行同步即可。
 
-### 3.1 实现同步程序前还要确定一个问题
+### 3.4 中断后怎么恢复
+
+同步脚本必须是幂等的。
+
+如果它在内容 commit 已经创建、但 `index.json` 还没更新时中断，下次运行需要从 Git commit message 中恢复：
+
+```text
+community_id + version
+→ 已存在的内容 commit hash
+```
+
+因此内容 commit 会包含稳定的 Learnova 标识。恢复后继续生成 index，而不是为同一版本再创建一次 commit。
+
+如果远程 push 失败，本地 commit 可以保留在 mirror 工作目录中；下一轮先与远程 `main` 对齐，再继续同步和重试 push。
+
+### 3.5 稳定的 skill-dir 由镜像层维护
 
 `mirror-spec.md` 要求 Skill 发布后的镜像目录保持稳定，即使 Skill 后续改名也不能改变。
 
@@ -171,9 +307,52 @@ community_id → skill-dir
 
 不能每次根据当前 `name` 临时计算。
 
-这个映射应由 Learnova 权威侧保存。建议在后端为社区 Skill 保存稳定的镜像目录字段，而不是让同步脚本自己维护另一份隐藏状态。
+Learnova 当前不为镜像增加字段。该映射由镜像层自身恢复：
 
-在正式编写镜像同步脚本前，需要先把这一点落实。
+```text
+当前仍在镜像中的 Skill
+→ 从 index.json 读取 community_id → dir
+
+曾经下架、后来重新上架的 Skill
+→ 从 Git 历史中的内容 commit trailer / 历史 index 恢复原 dir
+
+第一次进入镜像的 community_id
+→ 根据 name 分配 dir
+→ 冲突时追加 --<id前4位>
+```
+
+因此不额外维护另一份隐藏状态文件，也不要求修改 Learnova 数据库。Git 镜像自身包含恢复该映射所需的历史。
+
+### 3.6 调度器只是外层适配
+
+Linux 服务器上推荐 systemd，因为它普遍、日志和失败状态清楚，但 systemd 不是同步程序的运行前提。推荐包装为：
+
+```text
+learnova-skill-mirror.service   # oneshot：执行一轮同步
+learnova-skill-mirror.timer     # 定期触发 service
+```
+
+service 的职责只应是设置工作目录/环境并执行：
+
+```text
+python mirror/sync.py
+```
+
+其他环境直接使用同一个入口：
+
+```text
+cron                   → python mirror/sync.py
+Windows Task Scheduler → python mirror/sync.py
+Kubernetes CronJob     → python mirror/sync.py
+CI                     → python mirror/sync.py
+人工维护               → python mirror/sync.py --dry-run / --no-push
+```
+
+这些适配层不能复制同步业务逻辑。
+
+第一版在当前 Linux 生产环境优先提供 systemd oneshot + timer 模板。Learnova 审核接口只负责修改自身业务状态，不直接执行 Git push；同步程序读取最终 APPROVED 状态并自行对账，因此镜像故障不会阻塞审核。
+
+后续如果需要更快同步，可以在审核通过后触发同一个 oneshot service；不要另写第二套同步逻辑。
 
 ## 4. 镜像仓内容
 
@@ -281,7 +460,9 @@ python skills/learnova-cli/scripts/learnova.py list
 - [ ] 已准备独立的可写 Git 凭证。
 - [ ] 凭证只保存在部署服务器。
 - [ ] 已确定服务器工作目录和运行用户。
-- [ ] 已确定 `community_id → skill-dir` 的持久化方式。
+- [ ] 已确认当前运行环境能读取 Learnova 数据库和 `archived_skill`。
+- [ ] 已确认 `community_id → skill-dir` 可以从镜像当前状态或 Git 历史恢复。
+- [ ] 已选择调度方式；Linux 生产环境推荐 systemd oneshot + timer。
 - [ ] 同步程序只投影 APPROVED Skill。
 - [ ] 已准备首次端到端测试 Skill。
 

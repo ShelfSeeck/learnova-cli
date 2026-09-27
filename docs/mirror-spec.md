@@ -75,9 +75,54 @@ Learnova 技能社区的 git 镜像，托管于可长期访问的远程 Git 仓�
 
 ## 4. 版本管理
 
-- 版本历史 = git 提交历史。diff、blame、回滚直接使用 git 能力，不另设版本目录。
+- 版本历史 = git 提交历史。每个进入镜像的 APPROVED 版本都必须对应一个**内容 commit**，该 commit 中对应 `<skill-dir>/` 必须正好是这个版本的完整内容。
+- `versions[].commit` 记录内容 commit 的 hash，不记录后续的索引 commit。
 - 安装指定旧版本：按 `versions[].commit` 获取该 commit 的仓库归档并取对应技能目录。当前 CLI 使用 GitLab-compatible archive API 实现；其他托管服务需提供等价适配。
 - 同一版本号内容不会变化（由社区审核流保证），升级判断只比较版本号。
+- 工作区仍只保留最新 APPROVED 版本；旧版本只存在于 Git 历史中，不建立版本目录。
+
+### 4.1 为什么 index.json 单独提交
+
+`index.json` 需要记录版本对应的 commit hash，而 commit hash 只有在内容 commit 创建后才确定。因此 Skill 内容和引用它的索引不能依赖同一个 commit。
+
+同步顺序必须是：
+
+```text
+写入 skill-a@1.1
+→ content commit A
+→ 得到 hash A
+
+写入 skill-a@1.2
+→ content commit B
+→ 得到 hash B
+
+根据已确定的 A / B 生成 index.json
+→ index commit C
+```
+
+此时：
+
+```text
+skill-a@1.1 → commit A
+skill-a@1.2 → commit B
+HEAD         → commit C
+```
+
+### 4.2 内容 commit 的可恢复标识
+
+同步程序必须能在“内容 commit 已创建、index commit 尚未创建”时安全重跑，不能因为中断重复生成同一版本。
+
+每个内容 commit 的 message 使用稳定格式，并至少带以下 trailer：
+
+```text
+mirror: publish <skill-dir>@<version>
+
+Learnova-Community-Id: <community_id>
+Learnova-Version: <version>
+Learnova-Skill-Dir: <skill-dir>
+```
+
+正常情况下同步程序从 `index.json` 获取已有版本映射；如果上一次运行在更新 index 前中断，则从 Git 历史中的上述 trailer 恢复该版本对应的 commit hash。
 
 ## 5. 同步行为约定
 
@@ -85,9 +130,41 @@ Learnova 技能社区的 git 镜像，托管于可长期访问的远程 Git 仓�
 
 | 行为 | 约定 |
 |---|---|
-| 触发 | 审核通过事件触发，节流合并：低频上限（默认 30 分钟最多推送一次），期间多次审核批量处理 |
-| 上架 | 新版本 APPROVED → 更新对应技能目录工作区内容 |
+| 触发 | 审核通过事件或定时任务触发；允许节流合并，一轮同步处理期间积累的所有变化 |
+| 上架 | 每个尚未镜像的新 APPROVED 版本按创建时间顺序处理：写入对应目录 → 创建内容 commit → 记录 commit hash |
 | 下架/删除 | 技能在社区不再 APPROVED → 从工作区删除目录；git 历史保留，满足备份定位 |
-| commit 粒度 | 每次同步的所有变更打成一个 commit，message 列出本次上架/更新/删除的技能与版本 |
-| index.json | 每次同步重新全量生成，随同一 commit 提交 |
+| commit 粒度 | 每个新 APPROVED 版本一个内容 commit；下架删除可在本轮统一形成一个状态 commit；最后再生成一个 index commit |
+| index.json | 所有内容 commit 完成后全量生成；其中 `versions[].commit` 只引用已经存在的内容 commit |
+| push 粒度 | 一轮同步完成后统一 push，一轮可以有多个 commit，但通常只 push 一次 |
 | 失败处理 | 同步失败不阻塞审核；下一轮触发时重试 |
+
+### 5.1 一轮同步的完整流程
+
+```text
+读取所有 APPROVED 版本
+        ↓
+读取 index.json + Git 历史中的镜像版本标识
+        ↓
+找出尚未镜像的 APPROVED 版本
+        ↓
+按 created_at / community_id / version 稳定排序
+        ↓
+逐版本：
+  从权威归档复制 Skill
+  → 校验
+  → 更新 <skill-dir>/
+  → git commit
+  → 记录 commit hash
+        ↓
+对账当前应存在的 Skill
+  → 删除已下架目录
+  → 如有变化创建状态 commit
+        ↓
+全量生成 index.json
+  → 校验所有 versions[].commit 均存在
+  → 如有变化创建 index commit
+        ↓
+git push main
+```
+
+如果一轮没有任何内容、下架状态或索引变化，则不创建 commit，也不 push。

@@ -71,6 +71,32 @@ install / list / uninstall / upgrade 共享 `engine.py`，命令只做薄壳（�
 
 网络层带认证请求不得把 Authorization 跟随到不同 origin 的重定向目标；镜像 JSON、文本与 archive 下载均设置体积上限。
 
+## 6. 镜像生产端：独立 one-shot 工具
+
+用户侧 CLI 负责消费 Git 镜像；镜像生产端负责把 Learnova 的 APPROVED 社区数据投影成该 Git 镜像。两者共享 `mirror-spec.md` 契约，但运行位置和生命周期不同。
+
+镜像生产端归属 learnova-cli 仓库，不进入 `skills/learnova-cli/` 的 npx skills 分发包。Learnova 当前只作为只读数据源，不 import 镜像代码，也不需要为镜像增加数据库字段。
+
+```text
+Learnova SQLite + archived_skill/
+              │
+              │ read-only
+              ▼
+mirror/sync.py
+              │
+              │ commit + push
+              ▼
+Git mirror
+              │
+              │ read
+              ▼
+skills/learnova-cli/scripts/sources/mirror.py
+```
+
+`mirror/sync.py` 是幂等 one-shot 入口，不实现常驻循环。调度由 systemd timer、cron、Task Scheduler、CronJob 或 CI 等外部机制提供。核心代码不得依赖任一调度器或 Linux 专有服务管理接口。
+
+同步过程中的持久状态以 Git 镜像本身为准：当前映射来自 `index.json`，历史版本与曾经使用过的目录可从 Git commit/history 恢复。不要再引入与 Git 镜像并行、需要单独备份的私有同步状态库。
+
 ## 模块布局
 
 ```
@@ -100,6 +126,13 @@ skills/learnova-cli/
     ├── store.py         # ~/.learnova 读写
     ├── net.py           # urllib 封装（避免与标准库 http 同名遮蔽）
     └── telemetry.py
+
+mirror/
+├── sync.py              # 跨平台 one-shot 同步入口
+├── source.py            # Learnova SQLite / archive 只读适配
+├── repository.py        # Git 工作树、commit、push 与恢复
+├── index.py             # index.json 生成和校验
+└── deploy/              # 可选调度器模板；核心逻辑不依赖它
 ```
 
 ## 测试策略
