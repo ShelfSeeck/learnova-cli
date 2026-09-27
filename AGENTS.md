@@ -18,19 +18,19 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 
 - [x] 设计文档（cli-spec / mirror-spec / architecture）+ 按架构的 scripts 骨架
 - [ ] M1 镜像链路：镜像仓初始化 + 同步脚本 + index.json 生成（主项目侧）
-- [ ] M2 CLI 核心：MirrorSource、engine.install/uninstall、install/uninstall/upgrade 命令
+- [x] M2 CLI 核心：MirrorSource、engine.install/uninstall、install/uninstall/upgrade 命令
 - [ ] M3 账号与发布：login/publish/status、遥测、BackendSource、resolver 降级链、init
 - [ ] M4 发布：GitHub 建仓、`npx skills add` 验证、PowerShell 实测
 
 ## 硬规则
 
-- 运行时零第三方依赖（纯 stdlib，Python 3.10+）；pytest 仅 dev 依赖。
+- 运行时零第三方依赖（纯 stdlib，Python 3.10+）；测试用 unittest 裸跑，同样无第三方包。
 - handler 只返回 dict，不自行 print；错误抛 `CliError` 子类，不散落 try/except。
 - 输出契约（JSON 字段名、error code、退出码）发布后只增不改不删。
 - 本地状态只在 `~/.learnova/`（JSON 文件），不引入数据库。
 - 遥测默认不收集，仅登录后上报 install 事件，fire-and-forget。
 - 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端/镜像地址默认值发行时注入，源码留空。
-- 提交前跑 `uv run --with pytest python -m pytest tests/ -q`。
+- 提交前跑 `python -m unittest discover tests -v`；镜像链路测试另跑 `python tests/t1_mirror_flow.py`。
 
 ## 目录速查
 

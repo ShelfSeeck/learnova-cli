@@ -16,6 +16,6 @@ def handler(args, ctx) -> dict:
         if not args.key or args.value is None:
             from core.errors import CliError
             raise CliError("BAD_USAGE", "用法: config set <键> <值>", exit_code=2)
-        store.set_config_value(args.key, args.value)
-        return {"ok": True, "key": args.key, "value": args.value}
+        value = store.set_config_value(args.key, args.value)
+        return {"ok": True, "key": args.key, "value": value}
     return store.load_config()

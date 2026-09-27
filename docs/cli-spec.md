@@ -35,6 +35,7 @@ learnova-cli config [get] | config set <键> <值>
 | 同名冲突 | 默认报错，显式 `--force` 才覆盖 |
 | 升级 | 仅当索引中存在更高版本号才重装；同版本内容不变 |
 | 已安装清单 | 不维护本地记录，`list`/`uninstall`/`upgrade` 扫描 agent skills 目录重建状态 |
+| Scope 配置 | `install_scope` **只决定 install 的默认层级**；`list`/`uninstall`/`upgrade` 默认始终操作用户级，只有显式 `--project` 才操作项目级 |
 | 交互 | 默认非交互；`login`、`init` 及 `publish` 的版本号/changelog 由用户在终端亲自确认，agent 不代输凭证 |
 
 ## 3. agent 适配
@@ -55,9 +56,9 @@ learnova-cli config [get] | config set <键> <值>
 
 | 文件 | 内容 | 权限 |
 |---|---|---|
-| `config.json` | 下表配置项 | 默认 |
+| `config.json` | 下表配置项 | 600 |
 | `auth.json` | 登录凭证（refresh token 等） | 600 |
-| `index_cache.json` | 社区索引离线缓存 | 默认 |
+| `index_cache.json` | 社区索引离线缓存 | 600 |
 
 写盘一律临时文件 + 原子替换。
 
@@ -74,9 +75,18 @@ learnova-cli config [get] | config set <键> <值>
 
 ## 5. 检索策略
 
-- 默认调后端 API（与网页端一致的实时检索）。
-- 后端不可达或 `--offline` 时，降级为本地缓存的 index.json：按 name/display_name/description/tags 过滤，按 likes/downloads 快照排序。
+- 最终形态默认调后端 API（与网页端一致的实时检索）；当前后端数据源尚未接入，未配置后端时直接使用镜像源。
+- 后端不可达时降级镜像源；镜像源优先使用未过期的本地 index 缓存，需要时联网刷新。
+- `search --offline` 为**严格离线**：只读取已有 `index_cache.json`，不访问后端或 GitLab；没有缓存时直接报错。
+- 镜像检索按 name/display_name/description/tags 过滤，按 likes/downloads 快照排序。
 - 使用缓存时输出须标注 `generated_at` 并提示数据可能陈旧；缓存超过 `index_cache_ttl` 同样提示。
+
+## 5.1 Skill 目录安全边界
+
+- CLI 接受的技能目录标识必须是单个相对路径段；禁止空值、`.`、`..`、`/`、`\\` 与 NUL。
+- 所有安装、覆盖与删除目标在执行文件操作前必须确认仍位于对应 skills 根目录内。
+- 镜像 archive 只接受普通文件与目录；拒绝绝对路径、路径穿越、符号链接/硬链接及越出目标目录的成员。
+- 下载后的技能包必须包含可解析的 `SKILL.md`，其版本须与 index 中所选版本一致。
 
 ## 6. 遥测
 

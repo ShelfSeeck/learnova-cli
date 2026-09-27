@@ -17,6 +17,15 @@ class CliContext:
     offline: bool = False
     cwd: Path = field(default_factory=Path.cwd)
 
+    def install_project_scope(self, flag: bool) -> bool:
+        """install 的 --project 显式优先；否则使用 install_scope 默认值。"""
+        return bool(flag) or self.config.get("install_scope") == "project"
+
+    def selected_agents(self, explicit: list[str] | None = None) -> list[str] | None:
+        """显式 --agent 优先，否则应用 config.agents；None 表示自动检测。"""
+        configured = explicit if explicit is not None else self.config.get("agents", "auto")
+        return None if configured == "auto" else list(configured)
+
     @classmethod
     def build(cls, args) -> "CliContext":
         return cls(

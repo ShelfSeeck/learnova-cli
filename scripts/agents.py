@@ -3,6 +3,7 @@
 新增 agent = 表中加一行。检测规则：配置根目录存在即视为已安装。
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 
 AGENTS = {
@@ -24,14 +25,40 @@ AGENTS = {
 }
 
 
+@dataclass(frozen=True)
+class AgentTarget:
+    """一个物理 skills 目录及共享该目录的逻辑 agent。"""
+    path: Path
+    agents: tuple[str, ...]
+
+
 def detect(home: Path | None = None) -> list[str]:
     home = home or Path.home()
     return [name for name, spec in AGENTS.items() if (home / spec["detect_dir"]).is_dir()]
 
 
-def skills_dirs(selected: list[str] | None, project: bool, cwd: Path | None = None) -> dict[str, Path]:
-    """解析目标 skills 目录组。selected=None 时取 detect() 的全部结果。"""
-    names = selected if selected is not None else detect()
-    base = (cwd or Path.cwd()) if project else Path.home()
+def resolve_targets(
+    selected: list[str] | None,
+    project: bool,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> list[AgentTarget]:
+    """将逻辑 agent 映射为去重后的物理 InstallTarget。"""
+    if selected:
+        unknown = [n for n in selected if n not in AGENTS]
+        if unknown:
+            from core.errors import CliError
+            raise CliError("BAD_USAGE", f"未知 agent: {', '.join(unknown)}，可选: {', '.join(AGENTS)}", exit_code=2)
+    names = selected if selected else detect(home)
+    base = (cwd or Path.cwd()) if project else (home or Path.home())
     key = "project_skills" if project else "global_skills"
-    return {name: base / AGENTS[name][key] for name in names}
+    grouped: dict[Path, list[str]] = {}
+    for name in names:
+        path = base / AGENTS[name][key]
+        grouped.setdefault(path, []).append(name)
+    return [AgentTarget(path=path, agents=tuple(agent_names)) for path, agent_names in grouped.items()]
+
+
+def targets_for_agents(targets: list[AgentTarget], names: set[str]) -> list[AgentTarget]:
+    """保留包含指定逻辑 agent 的物理目标。"""
+    return [target for target in targets if any(name in names for name in target.agents)]

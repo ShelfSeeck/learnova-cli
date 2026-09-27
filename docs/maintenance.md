@@ -37,7 +37,20 @@
 | code | 含义 | 退出码 |
 |---|---|---|
 | `NOT_IMPLEMENTED` | 功能尚未实现 | 1 |
+| `SKILL_NOT_FOUND` | 索引中不存在指定技能 | 1 |
+| `VERSION_NOT_FOUND` | 索引中不存在指定版本 | 1 |
+| `SKILL_NOT_INSTALLED` | 本地 agent 目录中未安装指定技能 | 1 |
+| `NO_AGENT_FOUND` | 未检测到任何 agent 目标目录 | 1 |
+| `MIRROR_NOT_CONFIGURED` | 走镜像源但未配置 `mirror_repo_url` | 1 |
+| `MIRROR_ARCHIVE_INVALID` | 镜像 archive 内容结构不符合预期 | 1 |
+| `MIRROR_INDEX_INVALID` | 镜像 index.json schema/字段非法 | 1 |
+| `OFFLINE_CACHE_MISS` | 严格离线检索时没有本地索引缓存 | 1 |
+| `SKILL_PACKAGE_INVALID` | 下载的技能包缺少/包含非法 SKILL.md 或版本不一致 | 1 |
+| `LOCAL_STATE_INVALID` | 本地 JSON 状态损坏或配置值非法 | 1 |
+| `HTTP_RESPONSE_TOO_LARGE` | 网络响应超过 CLI 安全上限 | 1 |
+| `INTERNAL_ERROR` | 未预期的内部错误（Router 最终兜底） | 1 |
 | `BAD_USAGE` / `BAD_CONFIG_KEY` | 参数或配置项错误 | 2 |
+| `INVALID_SKILL_DIR` | 技能目录标识不是安全的单路径段 | 2 |
 | `SKILL_CONFLICT` | 目标目录已存在同名技能 | 3 |
 | `UNAUTHORIZED` | 凭证失效或未登录 | 4 |
 | `HTTP_ERROR` / `UNREACHABLE` | 后端 HTTP 错误 / 服务不可达 | 1 |
@@ -58,7 +71,7 @@
 
 ## 测试与提交
 
-- `core/` 纯逻辑必须有单测；命令层用假注入测；不测真实网络。
-- 提交前：`uv run --with pytest python -m pytest tests/ -q`。
+- `core/` 纯逻辑必须有单测；端到端走 T1（本地 stub + 临时目录），不测真实网络。
+- 提交前：`python -m unittest discover tests -v`（T0）；`python tests/t1_mirror_flow.py`（T1）。
 - commit message 用英文，前缀 `feat:` / `fix:` / `docs:` / `test:` / `chore:`。
 - `internal/` 为本地目录，已通过 `.git/info/exclude` 排除；克隆新环境后如需保留该约定，重新执行 `echo "/internal/" >> .git/info/exclude`。

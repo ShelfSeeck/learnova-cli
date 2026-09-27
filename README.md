@@ -1,7 +1,8 @@
 # Learnova CLI
 
-Learnova 技能社区的命令行入口，以 agent skill 形式分发。让你的本地 agent 直接搜索、安装、发布社区技能。
-主要功能是链接另外一个Learnova镜像
+Learnova 技能社区的命令行入口，以 agent skill 形式分发。
+
+当前实现聚焦镜像分发：从 Learnova 的 Git 镜像检索、查看、安装、升级和卸载社区技能。账号、在线后端检索与发布链路当前尚未实现。
 
 ## 安装
 
@@ -18,16 +19,16 @@ python scripts/learnova.py --help
 ## 快速上手
 
 ```bash
-python scripts/learnova.py init              # 首次初始化
-python scripts/learnova.py search 代码审查    # 搜索社区技能
-python scripts/learnova.py install <技能名>   # 安装到所有检测到的 agent
+python scripts/learnova.py config set mirror_repo_url <镜像仓地址>
+python scripts/learnova.py search 代码审查
+python scripts/learnova.py install <技能名>
 ```
 
 完整命令表、参数与默认行为见 [docs/cli-spec.md](docs/cli-spec.md)。
 
 ## 隐私
 
-未登录时零上报。登录后安装技能时上报一次安装事件用于社区活跃度统计，可用 `config set telemetry off` 或环境变量 `LEARNOVA_TELEMETRY=0` 关闭。详见 [docs/cli-spec.md](docs/cli-spec.md) §6。
+当前没有启用实际遥测发送端点。后续接入账号与遥测后，仍遵循“未登录零上报、可显式关闭”的规范。详见 [docs/cli-spec.md](docs/cli-spec.md) §6。
 
 ## 文档
 
@@ -35,6 +36,7 @@ python scripts/learnova.py install <技能名>   # 安装到所有检测到的 a
 |---|---|
 | [docs/cli-spec.md](docs/cli-spec.md) | 命令参考、配置项、本地存储、agent 适配、检索与遥测 |
 | [docs/mirror-spec.md](docs/mirror-spec.md) | git 镜像仓规范（目录布局、index.json schema、同步约定） |
+| [docs/operations.md](docs/operations.md) | 运行与维护手册（镜像仓配置、同步凭证、服务器准备、镜像链路验收） |
 | [docs/architecture.md](docs/architecture.md) | 实现架构（贡献者向） |
 | [docs/maintenance.md](docs/maintenance.md) | 维护手册：如何加新功能 |
 

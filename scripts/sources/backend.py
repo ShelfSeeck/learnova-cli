@@ -9,7 +9,7 @@ class BackendSource:
     def __init__(self, ctx):
         self.ctx = ctx
 
-    def search(self, keyword: str, tags: list[str], sort: str) -> list[dict]:
+    def search(self, keyword: str, tags: list[str], sort: str) -> dict:
         raise CliError("NOT_IMPLEMENTED", "BackendSource.search 尚未实现")
 
     def info(self, skill_dir: str) -> dict:

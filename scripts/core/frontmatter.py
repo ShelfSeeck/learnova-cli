@@ -19,10 +19,3 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
         meta[key.strip()] = value.strip().strip('"').strip("'")
     body = text[end + 4:].lstrip("\n")
     return meta, body
-
-
-def parse_skill_md(path) -> dict:
-    """读取 SKILL.md，返回 {name, description, version, ...} 常用字段。"""
-    with open(path, encoding="utf-8") as f:
-        meta, _ = parse_frontmatter(f.read())
-    return meta

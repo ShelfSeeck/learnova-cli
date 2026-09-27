@@ -13,7 +13,7 @@
 | 层 | 内容 | 外部依赖 | 阻塞性 |
 |---|---|---|---|
 | T0 单元 | `core/` 纯逻辑：版本比较、frontmatter、index 过滤排序 | 无 | 必过 |
-| T1 镜像链路 | `search` / `info` / `install` / `list` / `uninstall` / `upgrade` 全程走 MirrorSource（`--offline`） | 仅本地 fixture（见 §3） | **必过** |
+| T1 镜像链路 | 后端未配置时由 MirrorSource 完成 `search` / `info` / `install` / `list` / `uninstall` / `upgrade`；另验证 `search --offline` 零网络 | 仅本地 fixture（见 §3） | **必过** |
 | T2 后端链路 | `login` / `publish` / `status` / 遥测 / 在线检索与降级 | 后端地址 + 测试账号（§4） | 不阻塞 |
 
 分层原则：每层只依赖下一层已验证的东西；T1 不许出现任何对后端地址的访问（可在测试中断言零出站请求到 backend_url）。
@@ -70,11 +70,11 @@ CI 全程用 uv 提供 Python（与主项目一致），但**测试本身用 `py
 
 ## 6. 实施清单
 
-- [ ] 把 `tests/` 现有 pytest 风格测试改写为 `unittest`（纯断言迁移，无框架特性依赖）
-- [ ] 同步更新 `AGENTS.md` 硬规则中的测试命令为 `python -m unittest discover tests`
-- [ ] 编写 `tests/fixtures/mirror/`（假技能 × 2 + index.json）
-- [ ] 编写 `tests/fixtures/gitlab_stub.py`
-- [ ] 编写 `tests/t1_mirror_flow.py`：stub 生命周期管理 + 命令断言（search 出结果、install 落地文件正确、list 重建、upgrade 识别新版本、uninstall 清理）
+- [x] 把 `tests/` 现有 pytest 风格测试改写为 `unittest`（纯断言迁移，无框架特性依赖）
+- [x] 同步更新 `AGENTS.md` 硬规则中的测试命令为 `python -m unittest discover tests`
+- [x] 编写 `tests/fixtures/mirror/`（假技能 × 2 + index.json）
+- [x] 编写 `tests/fixtures/gitlab_stub.py`
+- [x] 编写 `tests/t1_mirror_flow.py`：stub 生命周期管理 + 命令断言（search 出结果、install 落地文件正确、list 重建、upgrade 识别新版本、uninstall 清理）
 - [ ] 编写 `.github/workflows/ci.yml`（test 矩阵 + backend-integration）
 - [ ] 编写 `.github/workflows/gitlab-smoke.yml`（schedule）
 - [ ] 维护者在后端创建测试账号，配置 §4 的 Variable 与 Secrets

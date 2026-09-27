@@ -10,7 +10,11 @@ import store
 
 def report(event: str, payload: dict) -> None:
     """异步上报事件，任何异常静默吞掉。"""
-    if not store.telemetry_enabled():
+    try:
+        enabled = store.telemetry_enabled()
+    except Exception:
+        return
+    if not enabled:
         return
     thread = threading.Thread(target=_send, args=(event, payload), daemon=True)
     thread.start()
