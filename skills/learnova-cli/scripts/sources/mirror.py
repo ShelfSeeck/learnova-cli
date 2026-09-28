@@ -15,7 +15,7 @@ import net
 import store
 from core import index as core_index
 from core.errors import CliError
-from core.skill import parse_skill_meta, validate_skill_dir
+from core.skill import parse_skill_meta, validate_skill_dir, write_install_metadata
 
 BRANCH = "main"
 MAX_ARCHIVE_MEMBERS = 2000
@@ -61,6 +61,7 @@ class MirrorSource:
             net.download(url, tarball)
             extracted = _extract_skill(tarball, skill_dir, dest)
             _validate_skill_package(extracted, entry["version"])
+            write_install_metadata(extracted, skill_dir, entry["version"])
             return extracted
 
     def _require_skill(self, index: dict, skill_dir: str) -> dict:

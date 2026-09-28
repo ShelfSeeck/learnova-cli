@@ -1,16 +1,23 @@
 """core 纯逻辑单测。运行: python -m unittest discover tests -v（零第三方依赖）"""
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 RUNTIME = Path(__file__).resolve().parent.parent / "skills" / "learnova-cli" / "scripts"
 sys.path.insert(0, str(RUNTIME))
 
+import store
 from core import index, versions
 from core.frontmatter import parse_frontmatter
 from core.errors import CliError
-from core.skill import validate_skill_dir
+from core.skill import (
+    parse_skill_meta,
+    read_install_metadata,
+    validate_skill_dir,
+    write_install_metadata,
+)
 
 
 def _skill(dir_name, version="1.0.0", **kw):
@@ -64,6 +71,42 @@ class SkillDirTest(unittest.TestCase):
         for value in ("", ".", "..", "../demo", "a/b", "a\\b"):
             with self.subTest(value=value), self.assertRaises(CliError):
                 validate_skill_dir(value)
+
+
+class SkillMetadataTest(unittest.TestCase):
+    def test_version_may_come_from_distribution_index(self):
+        meta = parse_skill_meta("---\nname: demo\ndescription: test\n---\n", "1.2.3")
+        self.assertEqual(meta["name"], "demo")
+        self.assertNotIn("version", meta)
+
+    def test_declared_version_must_match_index(self):
+        with self.assertRaises(CliError):
+            parse_skill_meta("---\nname: demo\nversion: 1.0.0\n---\n", "2.0.0")
+
+    def test_install_metadata_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_install_metadata(root, "demo", "1.2.3")
+            self.assertEqual(read_install_metadata(root), {"dir": "demo", "version": "1.2.3"})
+
+
+class StoreConfigTest(unittest.TestCase):
+    def test_default_mirror_and_user_override(self):
+        original = store.CONFIG_PATH
+        with tempfile.TemporaryDirectory() as tmp:
+            store.CONFIG_PATH = Path(tmp) / "config.json"
+            try:
+                self.assertEqual(
+                    store.load_config()["mirror_repo_url"],
+                    "https://git.nju.edu.cn/learnova/skills-mirror",
+                )
+                store.set_config_value("mirror_repo_url", "https://example.test/custom-mirror")
+                self.assertEqual(
+                    store.load_config()["mirror_repo_url"],
+                    "https://example.test/custom-mirror",
+                )
+            finally:
+                store.CONFIG_PATH = original
 
 
 class IndexTest(unittest.TestCase):

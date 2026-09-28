@@ -31,9 +31,14 @@ python skills/learnova-cli/scripts/learnova.py --help
 ## 快速上手
 
 ```bash
-python skills/learnova-cli/scripts/learnova.py config set mirror_repo_url <镜像仓地址>
 python skills/learnova-cli/scripts/learnova.py search 代码审查
 python skills/learnova-cli/scripts/learnova.py install <技能名>
+```
+
+CLI 默认使用正式镜像 `https://git.nju.edu.cn/learnova/skills-mirror`，无需首次配置。需要切换到其他镜像时仍可执行：
+
+```bash
+python skills/learnova-cli/scripts/learnova.py config set mirror_repo_url <镜像仓地址>
 ```
 
 完整命令表、参数与默认行为见 [docs/cli-spec.md](docs/cli-spec.md)。

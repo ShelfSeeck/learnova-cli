@@ -12,7 +12,7 @@ from pathlib import Path
 from agents import AgentTarget
 from core.errors import CliError, ConflictError
 from core.frontmatter import parse_frontmatter
-from core.skill import parse_skill_meta, validate_skill_dir
+from core.skill import parse_skill_meta, read_install_metadata, validate_skill_dir
 
 STAGING_PREFIX = ".learnova-staging-"
 BACKUP_PREFIX = ".learnova-backup-"
@@ -41,9 +41,15 @@ def _read_skill_meta(skill_files: Path) -> dict:
     if not skill_md.is_file() or skill_md.is_symlink():
         raise CliError("SKILL_PACKAGE_INVALID", "技能包缺少普通文件 SKILL.md")
     try:
-        return parse_skill_meta(skill_md.read_text(encoding="utf-8"))
+        meta = parse_skill_meta(skill_md.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError) as exc:
         raise CliError("SKILL_PACKAGE_INVALID", "无法读取技能包 SKILL.md") from exc
+    install_meta = read_install_metadata(skill_files)
+    if install_meta.get("version"):
+        meta = {**meta, "version": install_meta["version"]}
+    if not meta.get("version"):
+        raise CliError("SKILL_PACKAGE_INVALID", "技能包缺少可识别的版本信息")
+    return meta
 
 
 def _remove_generated(path: Path) -> None:
@@ -73,11 +79,17 @@ def scan_installed(targets: list[AgentTarget]) -> list[InstalledSkill]:
                 meta, _ = parse_frontmatter(skill_md.read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError):
                 continue
+            install_meta = read_install_metadata(child)
+            installed_version = (
+                install_meta.get("version")
+                if install_meta.get("dir") == child.name
+                else meta.get("version", "")
+            )
             for agent in target.agents:
                 found.append(InstalledSkill(
                     dir=child.name,
                     name=meta.get("name", child.name),
-                    version=meta.get("version", ""),
+                    version=installed_version,
                     agent=agent,
                     path=str(child),
                 ))

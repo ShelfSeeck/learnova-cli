@@ -20,9 +20,11 @@ CONFIG_PATH = LEARNOVA_HOME / "config.json"
 AUTH_PATH = LEARNOVA_HOME / "auth.json"
 INDEX_CACHE_PATH = LEARNOVA_HOME / "index_cache.json"
 
+DEFAULT_MIRROR_REPO_URL = "https://git.nju.edu.cn/learnova/skills-mirror"
+
 DEFAULTS = {
     "backend_url": "",          # 发行时填入默认值
-    "mirror_repo_url": "",      # 发行时填入默认值
+    "mirror_repo_url": DEFAULT_MIRROR_REPO_URL,
     "telemetry": "auto",        # auto=跟随登录态 / off=关闭
     "agents": "auto",           # auto=检测，或 ["claude", "codex"] 子集
     "install_scope": "user",    # user / project

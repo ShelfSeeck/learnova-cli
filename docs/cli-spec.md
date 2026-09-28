@@ -68,7 +68,7 @@ learnova-cli config [get] | config set <键> <值>
 | 键 | 默认值 | 说明 |
 |---|---|---|
 | `backend_url` | 发行时内置 | 后端 API 根地址 |
-| `mirror_repo_url` | 发行时内置 | git 镜像仓地址 |
+| `mirror_repo_url` | `https://git.nju.edu.cn/learnova/skills-mirror` | git 镜像仓地址；用户配置可覆盖 |
 | `telemetry` | `auto`（跟随登录态） | `off` 时登录也不上报 |
 | `agents` | `auto`（按目录检测） | 可限定为子集，如 `["claude", "codex"]` |
 | `install_scope` | `user` | 默认安装层级 |
@@ -87,7 +87,8 @@ learnova-cli config [get] | config set <键> <值>
 - CLI 接受的技能目录标识必须是单个相对路径段；禁止空值、`.`、`..`、`/`、`\\` 与 NUL。
 - 所有安装、覆盖与删除目标在执行文件操作前必须确认仍位于对应 skills 根目录内。
 - 镜像 archive 只接受普通文件与目录；拒绝绝对路径、路径穿越、符号链接/硬链接及越出目标目录的成员。
-- 下载后的技能包必须包含可解析的 `SKILL.md`，其版本须与 index 中所选版本一致。
+- 下载后的技能包必须包含可解析且带 `name` 的 `SKILL.md`；若 `SKILL.md` 自带 `version`，其值必须与 index 中所选版本一致。
+- Learnova 安装时在技能目录写入 `.learnova-install.json` 记录实际 `dir/version`，不要求第三方 Skill 为 Learnova 修改自身 frontmatter；`list/upgrade` 优先使用该 sidecar，并兼容旧安装从 `SKILL.md` 读取版本。
 
 ## 6. 遥测
 

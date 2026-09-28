@@ -414,15 +414,16 @@ index.json 出现 community_id / dir / version / commit
 
 ### CLI
 
-使用真实镜像地址执行：
+CLI 默认使用正式镜像，可直接执行：
 
 ```bash
-python skills/learnova-cli/scripts/learnova.py config set mirror_repo_url <mirror-url>
 python skills/learnova-cli/scripts/learnova.py search <测试关键词>
 python skills/learnova-cli/scripts/learnova.py info <skill-dir>
 python skills/learnova-cli/scripts/learnova.py install <skill-dir>
 python skills/learnova-cli/scripts/learnova.py list
 ```
+
+如需测试其他镜像，再显式执行 `config set mirror_repo_url <mirror-url>` 覆盖默认值。
 
 全部成功后，镜像分发链路才算真正可用。
 
