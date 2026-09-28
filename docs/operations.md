@@ -354,6 +354,8 @@ CI                     → python mirror/sync.py
 
 后续如果需要更快同步，可以在审核通过后触发同一个 oneshot service；不要另写第二套同步逻辑。
 
+仓库内的可直接使用模板见 `mirror/deploy/`。其中 `env.example` 定义部署配置，`systemd/` 和 `cron.example` 只负责调度。
+
 ## 4. 镜像仓内容
 
 工作区只保留每个 Skill 的最新 APPROVED 版本：

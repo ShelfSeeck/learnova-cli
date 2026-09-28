@@ -33,6 +33,7 @@
 - `repository.py` 收敛 Git 工作树、commit、历史恢复与 push。
 - `index.py` 负责 `index.json` 生成。
 - `sync.py` 只负责 one-shot 编排和配置入口，不实现常驻调度循环。
+- `deploy/` 只放 systemd、cron 等薄适配，不能复制同步逻辑。
 
 改动 producer 时至少运行：
 

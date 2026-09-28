@@ -1,0 +1,4 @@
+# Example only. Prefer an absolute python path and an environment file owned by
+# the same user that owns the mirror Git worktree.
+#
+# */10 * * * * set -a; . /path/to/learnova-mirror.env; set +a; cd /path/to/learnova-cli && /usr/bin/python3 mirror/sync.py
