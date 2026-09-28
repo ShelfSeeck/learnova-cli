@@ -20,8 +20,7 @@ from mirror.repository import ContentRecord, MirrorRepository, RepositoryError
 from mirror.source import ApprovedSkill, load_approved, validate_skill_tree
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-SPEC_SOURCE = REPO_ROOT / "docs" / "mirror-spec.md"
+SPEC_SOURCE = Path(__file__).resolve().with_name("SPEC.md")
 LOCK_STALE_SECONDS = 6 * 60 * 60
 
 

@@ -13,6 +13,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SYNC = REPO_ROOT / "mirror" / "sync.py"
 
 
+class MirrorRuntimeLayoutTest(unittest.TestCase):
+    def test_runtime_spec_copy_matches_development_spec(self):
+        self.assertEqual(
+            (REPO_ROOT / "mirror" / "SPEC.md").read_text(encoding="utf-8"),
+            (REPO_ROOT / "docs" / "mirror-spec.md").read_text(encoding="utf-8"),
+        )
+
+
 def _git(repo: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", "-C", str(repo), *args],

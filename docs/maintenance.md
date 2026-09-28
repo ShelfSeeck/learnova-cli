@@ -34,6 +34,7 @@
 - `index.py` 负责 `index.json` 生成。
 - `sync.py` 只负责 one-shot 编排和配置入口，不实现常驻调度循环。
 - `deploy/` 只放 systemd、cron 等薄适配，不能复制同步逻辑。
+- `mirror/` 必须保持可独立部署；运行时不得依赖 consumer CLI、tests 或仓库根目录其他文档。开发规范仍维护在 `docs/mirror-spec.md`，提交前同步更新运行时副本 `mirror/SPEC.md`，测试会检查两者一致。
 
 改动 producer 时至少运行：
 

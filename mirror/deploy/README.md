@@ -11,6 +11,19 @@
 3. 一个持久的本地 Git 工作目录。
 4. 能向正式 skills-mirror 仓库 push 的 Git/SSH 身份。
 
+生产运行时只需要仓库中的 `mirror/` 目录。推荐用 sparse checkout 保留 Git 更新能力，而不把 consumer CLI、tests 和其他 docs 部署到服务器：
+
+```bash
+git clone --filter=blob:none --no-checkout \
+  https://git.nju.edu.cn/learnova/learnova-cli.git \
+  ~/Projects/learnova-cli
+git -C ~/Projects/learnova-cli sparse-checkout init --no-cone
+git -C ~/Projects/learnova-cli sparse-checkout set '/mirror/'
+git -C ~/Projects/learnova-cli checkout main
+```
+
+此时工作树只包含 `mirror/`。同步器需要的镜像规范副本也随 `mirror/SPEC.md` 一起部署，不依赖仓库根目录的 `docs/`。
+
 推荐三个目录彼此独立：
 
 ```text
@@ -72,7 +85,7 @@ python mirror/sync.py --no-push
 `learnova-skill-mirror.service.in` 需要替换：
 
 - `@RUN_USER@`：执行同步的系统用户。
-- `@PROJECT_DIR@`：learnova-cli 仓库绝对路径。
+- `@PROJECT_DIR@`：包含 `mirror/` 的 sparse checkout 根目录。
 - `@ENV_FILE@`：私有 env 文件绝对路径。
 - `@PYTHON@`：Python 解释器绝对路径。
 
