@@ -191,7 +191,12 @@ def _safe_tar_parts(name: str) -> tuple[str, ...]:
     path = PurePosixPath(name)
     if path.is_absolute() or ".." in path.parts:
         raise CliError("MIRROR_ARCHIVE_INVALID", f"archive 成员路径越界: {name!r}")
-    return tuple(part for part in path.parts if part not in {"", "."})
+    parts = tuple(part for part in path.parts if part not in {"", "."})
+    if any(":" in part for part in parts):
+        # 盘符组件（"C:"）跨平台语义不一：部分 pathlib 版本 joinpath 时会重置或吞掉它，
+        # 不能依赖解压后的 is_relative_to 兜底，须在路径层显式拒绝。
+        raise CliError("MIRROR_ARCHIVE_INVALID", f"archive 成员路径含保留字符: {name!r}")
+    return parts
 
 
 def _validate_skill_package(skill_root: Path, expected_version: str) -> None:
