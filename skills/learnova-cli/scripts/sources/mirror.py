@@ -55,7 +55,12 @@ class MirrorSource:
         index, _ = self._index()
         skill = self._require_skill(index, skill_dir)
         entry = self._version_entry(skill, version)
-        url = f"{self._api_base()}/repository/archive.tar.gz?sha={entry['commit']}"
+        # 必须带 path= 让服务端只打包技能子目录：镜像仓整体已超 50MB 下载上限，
+        # 全仓 archive 会让所有安装失败（HTTP_RESPONSE_TOO_LARGE）。
+        url = (
+            f"{self._api_base()}/repository/archive.tar.gz"
+            f"?sha={entry['commit']}&path={urllib.parse.quote(skill_dir, safe='')}"
+        )
         with tempfile.TemporaryDirectory(prefix="learnova-archive-") as tmp:
             tarball = Path(tmp) / "archive.tar.gz"
             net.download(url, tarball)
