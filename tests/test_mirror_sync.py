@@ -1,6 +1,7 @@
 """Mirror producer 端到端测试：临时 SQLite + archived_skill + 真实 Git repo。"""
 
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -156,6 +157,7 @@ class MirrorSyncTest(unittest.TestCase):
         expect_exit: int = 0,
         no_push: bool = True,
         dry_run: bool = False,
+        env_extra: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         args = [
             sys.executable,
@@ -177,6 +179,7 @@ class MirrorSyncTest(unittest.TestCase):
             capture_output=True,
             text=True,
             encoding="utf-8",
+            env={**os.environ, **(env_extra or {})},
         )
         self.assertEqual(proc.returncode, expect_exit, proc.stdout + proc.stderr)
         return proc
@@ -381,10 +384,17 @@ class MirrorSyncTest(unittest.TestCase):
             versions=[("1.0.0", "APPROVED", 100.0)],
         )
         hook = self.repo / ".git" / "hooks" / "pre-commit"
-        hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        # 钩子必须写 LF：write_text 在 Windows 上转 CRLF，"#!/bin/sh\r" 不会被执行
+        hook.write_bytes(b"#!/bin/sh\nexit 1\n")
         hook.chmod(0o755)
+        # 用 env config 把 core.hooksPath 钉回本仓库，避免被贡献者的全局配置（lefthook 等）绕过
+        hook_env = {
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.hooksPath",
+            "GIT_CONFIG_VALUE_0": str(self.repo / ".git" / "hooks"),
+        }
 
-        self.run_sync(expect_exit=1)
+        self.run_sync(expect_exit=1, env_extra=hook_env)
 
         self.assertFalse((self.repo / "alpha").exists())
         self.assertFalse((self.repo / "index.json").exists())

@@ -1,0 +1,41 @@
+name: GitLab mirror smoke
+
+# 对真实生产镜像仓的冒烟检查，独立于 PR 检查（docs/ci.md §3）。
+# fixture 模拟不了真实 GitLab 的端点行为——archive 的 path= 过滤、
+# 下载上限等回归只能靠这条链路暴露。
+on:
+  schedule:
+    - cron: "17 3 * * *" # 每日 UTC 03:17（北京时间 11:17）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LEARNOVA_HOME: ${{ runner.temp }}/learnova-smoke-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv python install 3.12
+
+      # 全新 runner 没有任何 agent 目录，install 会没有安装目标；预置一个
+      - name: prepare agent dir
+        run: mkdir -p ~/.claude/skills
+
+      - name: search
+        run: |
+          uv run --no-project --python 3.12 python skills/learnova-cli/scripts/learnova.py search 微积分 > search.out
+          grep -q "dir:" search.out
+
+      # 安装目标选镜像里的固定技能；若日后被下架，冒烟失败即为预期告警。
+      - name: install / list / uninstall
+        run: |
+          uv run --no-project --python 3.12 python skills/learnova-cli/scripts/learnova.py install grill-me
+          uv run --no-project --python 3.12 python skills/learnova-cli/scripts/learnova.py list | grep -q "grill-me"
+          uv run --no-project --python 3.12 python skills/learnova-cli/scripts/learnova.py uninstall grill-me

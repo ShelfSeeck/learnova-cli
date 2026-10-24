@@ -1,7 +1,7 @@
 """本地 GitLab 镜像 stub：T1 专用，只模拟 CLI 实际用到的两个端点。
 
 - GET .../raw/main/<path>                     → fixture 工作区文件（如 index.json、README.md）
-- GET .../repository/archive.tar.gz?sha=<sha>  → 动态打包工作区或 .commits/<sha>/ 历史快照
+- GET .../repository/archive.tar.gz?sha=<sha>&path=<dir>  → 动态打包工作区或 .commits/<sha>/ 历史快照
 
 不模拟完整 GitLab API；记录收到的请求路径供断言。
 """
