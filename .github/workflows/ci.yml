@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: T0+T1 (${{ matrix.os }} / py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install Python
+        run: uv python install "${{ matrix.python-version }}"
+
+      # docs/ci.md §5：测试用 unittest 裸跑，不引入 pytest
+      - name: T0 unit tests
+        run: uv run --no-project --python "${{ matrix.python-version }}" python -m unittest discover tests -v
+
+      - name: T1 mirror flow
+        run: uv run --no-project --python "${{ matrix.python-version }}" python tests/t1_mirror_flow.py
+
+      # docs/ci.md §5：仅 Windows 实测 PowerShell 入口
+      - name: PowerShell entry smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LEARNOVA_HOME: ${{ runner.temp }}/learnova-smoke-home
+        run: |
+          $env:PATH = "$(Split-Path (uv python find '${{ matrix.python-version }}'));$env:PATH"
+          skills/learnova-cli/learnova-cli.ps1 list
+
+  # T2 后端链路：尽力跑，失败不阻塞合并（docs/ci.md §1）。
+  # Variable 未配置时整个作业跳过；T2 测试脚本尚未实现（§6 清单），
+  # 目前按 test_backend*.py 占位发现，脚本落地后自动生效。
+  backend-integration:
+    name: T2 backend integration
+    needs: test
+    if: vars.LEARNOVA_TEST_BACKEND_URL != ''
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv python install 3.12
+
+      - name: T2 suite
+        env:
+          LEARNOVA_TEST_BACKEND_URL: ${{ vars.LEARNOVA_TEST_BACKEND_URL }}
+          LEARNOVA_TEST_USERNAME: ${{ secrets.LEARNOVA_TEST_USERNAME }}
+          LEARNOVA_TEST_PASSWORD: ${{ secrets.LEARNOVA_TEST_PASSWORD }}
+        run: |
+          uv run --no-project --python 3.12 python -m unittest discover tests -p "test_backend*.py" -v
+          echo "::warning::T2 测试脚本尚未实现，占位运行（docs/ci.md §6）"
