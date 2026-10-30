@@ -13,6 +13,7 @@ Learnova 技能社区的分发工具，面向使用个人 agent（Claude Code、
 |---|---|---|
 | [mirror-spec.md](mirror-spec.md) | git 镜像仓规范：目录布局、命名规则、index.json schema、同步行为约定 | 镜像维护者、CLI 开发者 |
 | [operations.md](operations.md) | 运行与维护手册：远程 Git 镜像仓、同步凭证、服务器准备、镜像链路验收与日常维护 | 项目维护者、部署人员 |
+| [pdf2skill-design.md](pdf2skill-design.md) | PDF 转知识参考型 Skill 构建设计：agent 优先、双运行模式、完整性、产物与管理边界（待实现） | 构建模块开发者 |
 | [cli-spec.md](cli-spec.md) | CLI 规范：命令面、配置与本地存储、agent 适配、检索与遥测、发布链路 | CLI 开发者、使用者 |
 | [architecture.md](architecture.md) | 实现架构：命令层、输出契约、数据源抽象、安装引擎、错误模型 | CLI 开发者 |
 | [maintenance.md](maintenance.md) | 维护手册：加新命令/agent/数据源的步骤、契约变更规则、错误码登记 | CLI 开发者 |
