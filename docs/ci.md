@@ -75,8 +75,8 @@ CI 全程用 uv 提供 Python（与主项目一致），但**测试本身用 `py
 - [x] 编写 `tests/fixtures/mirror/`（假技能 × 2 + index.json）
 - [x] 编写 `tests/fixtures/gitlab_stub.py`
 - [x] 编写 `tests/t1_mirror_flow.py`：stub 生命周期管理 + 命令断言（search 出结果、install 落地文件正确、list 重建、upgrade 识别新版本、uninstall 清理）
-- [ ] 编写 `.github/workflows/ci.yml`（test 矩阵 + backend-integration）
-- [ ] 编写 `.github/workflows/gitlab-smoke.yml`（schedule）
+- [x] 编写 `.github/workflows/ci.yml`（test 矩阵 + backend-integration）
+- [x] 编写 `.github/workflows/gitlab-smoke.yml`（schedule）
 - [ ] 维护者在后端创建测试账号，配置 §4 的 Variable 与 Secrets
 - [ ] Windows 作业实测 PowerShell 入口
 
