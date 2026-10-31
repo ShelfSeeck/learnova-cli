@@ -148,16 +148,33 @@ def _visible_markdown(text):
     visible = _mask_code_spans(''.join(chars))
     chars = list(visible)
     position = 0
-    while (start := visible.find('<!--', position)) != -1:
+    tag_start = re.compile(r'</?[A-Za-z][A-Za-z0-9-]*(?=[\s/>])')
+    while (start := visible.find('<', position)) != -1:
+        position = start + 1
         if _escaped(visible, start):
-            position = start + 4
             continue
-        end = visible.find('-->', start + 4)
-        end = len(visible) if end == -1 else end + 3
-        for i in range(start, end):
-            if visible[i] not in '\r\n':
-                chars[i] = ' '
-        position = end
+        if visible.startswith('<!--', start):
+            end = visible.find('-->', start + 4)
+            end = len(visible) if end == -1 else end + 3
+            for i in range(start, end):
+                if visible[i] not in '\r\n':
+                    chars[i] = ' '
+            position = end
+        elif (tag := tag_start.match(visible, start)) is not None:
+            # Attribute values belong to the tag, so their <!-- is literal.
+            quote = None
+            end = tag.end()
+            while end < len(visible):
+                ch = visible[end]
+                if quote:
+                    if ch == quote:
+                        quote = None
+                elif ch in '\"\'':
+                    quote = ch
+                elif ch == '>':
+                    position = end + 1
+                    break
+                end += 1
     return ''.join(chars)
 
 
