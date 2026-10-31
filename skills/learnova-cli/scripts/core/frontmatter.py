@@ -24,11 +24,15 @@ def parse_frontmatter(text: str, *, strict=False) -> tuple[dict, str]:
                 raise ValueError('invalid frontmatter')
             key, value = pair[1], pair[2].strip()
             if value.startswith('"'):
-                value = json.loads(value)
-            elif value.startswith("'"):
-                if not re.fullmatch(r"'(?:[^']|'')*'", value):
+                value, end = json.JSONDecoder().raw_decode(value)
+                trailing = pair[2].strip()[end:].strip()
+                if trailing and not trailing.startswith('#'):
                     raise ValueError('invalid frontmatter')
-                value = value[1:-1].replace("''", "'")
+            elif value.startswith("'"):
+                quoted = re.fullmatch(r"'((?:[^']|'')*)'(?:[ \t]+#.*)?", value)
+                if not quoted:
+                    raise ValueError('invalid frontmatter')
+                value = quoted[1].replace("''", "'")
             else:
                 value = re.split(r'(?:^|[ \t]+)#', value, maxsplit=1)[0].rstrip()
                 if (not value or value[0] in '[{>|&*!' or ': ' in value

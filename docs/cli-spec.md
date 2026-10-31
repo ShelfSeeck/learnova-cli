@@ -1,6 +1,6 @@
 # CLI 规范
 
-Learnova CLI 的行为规范。实现架构（模块划分与设计模式）另行约定后补充。
+Learnova CLI 的行为规范。实现架构见 [architecture.md](architecture.md)。
 
 ## 1. 运行形态
 
@@ -70,16 +70,20 @@ learnova-cli config [get] | config set <键> <值>
 | `backend_url` | 发行时内置 | 后端 API 根地址 |
 | `mirror_repo_url` | `https://git.nju.edu.cn/learnova/skills-mirror` | git 镜像仓地址；用户配置可覆盖 |
 | `telemetry` | `auto`（跟随登录态） | `off` 时登录也不上报 |
+| `telemetry_endpoint` | 空 | 独立安装事件接口的同源绝对路径；部署提供接口后配置，未配置不发送 |
 | `agents` | `auto`（按目录检测） | 可限定为子集，如 `["claude", "codex"]` |
 | `install_scope` | `user` | 默认安装层级 |
 | `index_cache_ttl` | `86400` | 离线缓存有效期（秒） |
 
 ## 5. 检索策略
 
-- 最终形态默认调后端 API（与网页端一致的实时检索）；当前后端数据源尚未接入，未配置后端时直接使用镜像源。
+- 配置后端且有可用登录凭证时优先调后端 API；未配置后端或未登录时直接使用镜像源。
 - 后端不可达时降级镜像源；镜像源优先使用未过期的本地 index 缓存，需要时联网刷新。
 - `search --offline` 为**严格离线**：只读取已有 `index_cache.json`，不访问后端或 GitLab；没有缓存时直接报错。
+- 索引缓存绑定产生它的镜像地址；切换镜像时不得使用旧源缓存。旧格式无来源缓存可用于原默认镜像兼容读取，切换到其他镜像须重新获取。
+- 后端连接、超时、服务端错误或认证不可用时可降级；技能或版本不存在、非法响应和包校验失败须保留对应错误，不以降级掩盖。
 - 镜像检索按 name/display_name/description/tags 过滤，按 likes/downloads 快照排序。
+- 在线源使用镜像 `community_id → dir` 映射保留稳定目录身份，不根据当前名称猜测重名后缀。尚未进入镜像的在线结果暂不列为可安装条目；`total` 为有映射结果数，可附 `backend_total`、`unmapped_total` 说明实时来源中的未映射数量。
 - 使用缓存时输出须标注 `generated_at` 并提示数据可能陈旧；缓存超过 `index_cache_ttl` 同样提示。
 
 ## 5.1 Skill 目录安全边界
@@ -96,6 +100,10 @@ learnova-cli config [get] | config set <键> <值>
 - 仅登录状态下上报；未登录完全静默。接受「下载量 ≠ 真实使用量」。
 - 关闭优先级：环境变量 `LEARNOVA_TELEMETRY=0` > `config telemetry=off` > 默认（跟随登录态）。
 - 工程要求：fire-and-forget，短超时，失败静默，永不阻塞或失败安装主流程。
+- 事件接口只接收 `{event:"install",skill,version,ts}`，需登录认证及防重放请求头。客户端通过 `telemetry_endpoint` 显式指定同源路径，不猜测线上路由，不以会修改技能库的安装接口代替统计接口。
+- 实际发送由独立短命工作进程完成，CLI 不等待网络，退出不会中断已启动发送；工作进程无标准输出和错误输出，再次检查开关与登录态，不持久化事件队列。
+- 工作进程仅通过私有内存管道接收本次命令已有的访问凭证；凭证不出现在参数、环境或事件文件中。后台不得刷新、保存或清除登录状态，无可用访问凭证或认证失败时放弃事件，避免与下一条命令竞争刷新凭证。
+- 计数资源通过查询参数 `community_id` 定位，仅从当前镜像已有缓存中精确匹配目录与版本；缓存缺失、错源、损坏或映射不唯一时放弃事件，不联网补映射。查询参数不增加事件正文字段，也不根据名称猜测技能身份。配套后端路径为 `/community/install-events`，需由部署显式启用。
 
 ## 7. 发布链路
 
@@ -106,8 +114,22 @@ login（用户亲自执行）
   → status 查询审核状态与驳回备注
 ```
 
-- 发布复用后端现有上传/发布接口；审核状态查询依赖后端提供的 publish-status 接口。
+- 发布复用后端现有上传/发布接口；审核状态与驳回备注优先复用现有查询与审核记录接口，接入前核对实际契约和部署版本。
 - 发布成功后技能内容经审核上架，由镜像同步进入 git 仓，CLI 用户即可检索安装。
+
+### 账号与初始化
+
+`login` 由用户在真实终端输入邮箱和密码，不接受密码命令行参数；非终端调用返回 `BAD_USAGE` 和亲自登录的提示。登录使用后端当前 access token 与 refresh Cookie 协议；凭证仅保存于权限 600 的 auth.json，并绑定后端 origin。刷新成功原子保存轮换凭证，后端地址改变时不得向新 origin 发送旧凭证。输出不含 token、Cookie 或密码。
+
+`whoami` 保留 `logged_in`、`username` 字段；无凭证时返回未登录，有凭证时查询当前账号。`logout` 尝试吊销后清除本地凭证；后端不可达也允许完成本地退出，保留 `ok`、`message` 字段。
+
+`init` 检测 agent 并展示配置，用户终端确认后保存；已有有效配置可重复使用，不覆盖显式配置。非交互环境不等待输入，返回 `status=needs_input`、`kind=configuration`、`questions`；已完成初始化返回配置摘要。默认镜像无需额外配置，登录不作为镜像使用的前置条件。
+
+发布使用当前目录的安全 ZIP 与现有上传/发布接口，显式提供的 `--version` 和 `--changelog` 即为本次确认，不追加重复终端确认。成功结果表达已提交审核，不等于已上架。`status` 查询当前账号的提交及审核备注，不依赖私有安装清单。
+
+发布和构建打包均排除隐藏文件/目录与已知凭证、管理文件，避免携带本机认证状态；若成品引用被排除文件，须先整理为可公开资源再打包。发布保留原始 SKILL.md，允许常见 YAML 字符串、行尾注释和嵌套 metadata；最终格式及资源类型仍受后端规则约束。
+
+认证及发布请求由账号服务编排，net 提供可选响应头、显式 Content-Type 与空响应支持；需要防重放的写请求附随机 nonce 和时间戳。Authorization 与 Cookie 均不得跟随跨 origin 重定向。
 
 项目级 `list`、`uninstall` 和 `upgrade` 合并所选 agent 的项目目录与 `.agents/skills/`，按物理路径去重；无 agent 对应统一目录时标记为 `project`。用户级默认范围和 install 目标不变。清单新增 `source`：有效且目录名匹配的 `.learnova-install.json`（含原有 dir/version 格式）为 `community`，优先于构建记录；否则 schema 1 或 2、source 为 `local-build` 的 `.learnova-build.json` 表示 `local-build`，其余为 `unknown`。社区升级只处理物理目录中来源为 `community` 的副本，跳过其他来源；旧 frontmatter 包仍可查看和卸载，需显式 `install --force` 才能建立社区来源。
 
@@ -180,3 +202,7 @@ completed 是历史状态：status/next/普通 resume 不读取成品、原始�
 build package 读取当前成品目录，校验名称/描述、普通安全路径、当前本地参考和图片；接受新增文件及编辑，不要求来源记录或原快照。ZIP 排除 .learnova-install.json、.learnova-build.json、.learnova/、版本库、凭证与管理临时文件。成品删除时报告打包错误，不修改完成历史或自动重建。不上传、不更改安装版本。
 
 `build read` 始终读取私有任务快照，用于构建与排查；日常加载 Skill 应读取当前成品文件，不能用旧快照覆盖用户编辑。
+
+`build run` 达到步数上限时返回最后一次已保存操作之后的当前状态，不返回已提交的判断请求。同一技能的多个社区来源安装副本在升级时作为一个事务提交；目标之一失败则回滚本次该技能全部目标，来源为本地构建或未知的副本仍跳过。
+
+自动判断默认请求最多 2048 输出 token；服务明确返回 `finish_reason=length` 时，仅允许将预算提高至 8192 后重试一次，仍受总请求次数与响应大小限制。再次截断返回既有格式错误，不接受不完整判断。

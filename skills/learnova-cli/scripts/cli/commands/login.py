@@ -1,6 +1,6 @@
 """login：用户在终端亲自执行，账号密码换 TokenPair 写 auth.json（600）。"""
 
-from core.errors import CliError
+import auth
 
 
 def register(sub) -> None:
@@ -8,4 +8,4 @@ def register(sub) -> None:
 
 
 def handler(args, ctx) -> dict:
-    raise CliError("NOT_IMPLEMENTED", "命令 'login' 尚未实现")
+    return auth.login_interactive(ctx)

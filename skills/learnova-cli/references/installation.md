@@ -54,7 +54,7 @@ python "<skill-dir>/scripts/learnova.py" upgrade <skill> --json
 python "<skill-dir>/scripts/learnova.py" upgrade --all --json
 ```
 
-项目级操作加 `--project`。只有镜像中存在更高版本号时才升级。
+项目级操作加 `--project`。只有当前数据源存在更高版本号时才升级，社区来源的多个目标作为同一技能的一次事务更新。升级跳过 `local-build` 和 `unknown` 来源，避免覆盖本地作品或来源不明的目录。
 
 ## 卸载
 

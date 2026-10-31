@@ -17,7 +17,7 @@ from core.errors import CliError
 
 class CliArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        raise CliError("BAD_USAGE", message, exit_code=2)
+        raise CliError("BAD_USAGE", "命令参数无效或缺少必填参数；请使用 --help 查看用法", exit_code=2)
 
 
 def build_parser() -> argparse.ArgumentParser:

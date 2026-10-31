@@ -25,6 +25,8 @@ python "<skill-dir>/scripts/learnova.py" search "<keyword>" --json
 
 当前镜像搜索在客户端对 `name`、`display_name`、`description` 和 `tags` 做字段匹配，并使用镜像中的点赞、下载和发布时间快照排序。
 
+配置后端并登录后优先在线检索，连接、服务端或认证不可用时可回退镜像。根据 `source` 判断实际来源；实时源的 `generated_at` 为 null。在线结果使用镜像的稳定目录映射，尚未同步镜像的条目暂不列为可安装结果。
+
 ## 查看候选详情
 
 搜索结果只用于发现候选项。准备采用某个 Skill 前调用：
@@ -33,7 +35,7 @@ python "<skill-dir>/scripts/learnova.py" search "<keyword>" --json
 python "<skill-dir>/scripts/learnova.py" info <skill-dir-name> --json
 ```
 
-`info` 返回展示信息、标签、统计快照、最新版本、历史版本以及当前 README。重点阅读：
+`info` 返回展示信息、标签、统计、最新已审核版本、历史已审核版本以及对应 README。重点阅读：
 
 - `description` 和 `tags`：快速判断领域是否匹配。
 - `readme`：判断 Skill 的实际用途、约束和工作方式。

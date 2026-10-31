@@ -104,7 +104,7 @@ class MirrorSource:
 
     def _index(self) -> tuple[dict, bool]:
         """返回 (index, stale)。"""
-        cached, stale = store.load_index_cache()
+        cached, stale = store.load_index_cache(self._repo_url())
         if self.ctx.offline:
             if cached is None:
                 raise CliError("OFFLINE_CACHE_MISS", "严格离线模式下没有本地索引缓存")
@@ -118,7 +118,7 @@ class MirrorSource:
                 return core_index.validate_index(cached), True
             raise
         core_index.validate_index(fetched)
-        store.save_index_cache(fetched)
+        store.save_index_cache(fetched, self._repo_url())
         return fetched, False
 
     def _meta(self, index: dict, stale: bool) -> dict:

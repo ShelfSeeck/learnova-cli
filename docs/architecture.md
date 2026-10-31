@@ -41,7 +41,7 @@ Learnova CLI 的内部架构约定。行为规范见 [cli-spec.md](cli-spec.md)�
 
 - `SkillSource` 协议（端口）：`search` / `info` / `fetch` 三个能力。
 - 两个适配器：`BackendSource`（后端 API）、`MirrorSource`（index.json 缓存 + GitLab archive 按 commit 下载）。
-- Resolver 是唯一的源决策者：最终形态默认 Backend 优先、失败降级 Mirror；当前后端未配置时直接选 Mirror，完整的在线回退链在后端数据源接入时实现。
+- Resolver 是唯一的源决策者：有后端配置及凭证时 Backend 优先，可恢复网络/服务/认证失败时降级 Mirror；严格离线、后端未配置或无凭证时直接选 Mirror。非法响应、包错误和明确的不存在错误不降级。
 - `--offline` 只用于严格离线检索；MirrorSource 在该模式下不得发起网络请求。
 - 命令层只面向协议编程，不碰 urllib、不知道背后是哪个源。
 - 扩展：新源 = 实现协议 + 注册进 Resolver；改回退策略只动 Resolver；测试注入 FakeSource。
@@ -70,6 +70,10 @@ install / list / uninstall / upgrade 共享 `engine.py`，命令只做薄壳（�
 | 纯逻辑 | `core/` | 零 IO 纯函数：frontmatter、版本比较、index 解析、errors |
 
 网络层带认证请求不得把 Authorization 跟随到不同 origin 的重定向目标；镜像 JSON、文本与 archive 下载均设置体积上限。
+
+`auth.py` 收敛登录交互、origin 绑定的凭证刷新与认证请求；命令不读写 Cookie、不组装 nonce。net 的新参数和响应头能力保持原请求签名兼容，空 204 响应可返回 None。发布目录扫描和 ZIP 操作收敛到发布服务，复用安全纯校验；业务错误仍统一向 Router 抛出。
+
+遥测使用独立短命进程，访问凭证仅经私有管道传递，工作进程不得刷新、保存或清除账号状态。它只读当前同源镜像缓存，以唯一目录及版本定位 community_id 后发送原四字段事件，缺映射或认证失败静默放弃。发布与构建打包共享纯隐藏路径排除规则。
 
 ## 6. 镜像生产端：独立 one-shot 工具
 
@@ -125,6 +129,9 @@ skills/learnova-cli/
     ├── engine.py        # 安装引擎
     ├── store.py         # ~/.learnova 读写
     ├── net.py           # urllib 封装（避免与标准库 http 同名遮蔽）
+    ├── auth.py          # 账号、凭证刷新和同源认证请求
+    ├── bootstrap.py     # 初始化预览与终端确认
+    ├── publishing.py    # 安全打包、提交与审核查询
     └── telemetry.py
 
 mirror/

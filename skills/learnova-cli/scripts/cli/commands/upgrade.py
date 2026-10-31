@@ -35,12 +35,17 @@ def handler(args, ctx) -> dict:
     by_path = {}
     for item in eligible:
         by_path.setdefault(item.path, []).append(item)
+    by_skill = {}
     for path, items in by_path.items():
         item = items[0]
         planned, rejected = core_index.plan_upgrades(catalog, [{"dir": item.dir, "version": item.version}])
         skipped.extend({**entry, "path": path} for entry in rejected)
         if planned:
             target = next(t for t in targets if str(t.path / item.dir) == path)
-            engine.fetch_and_install(source, item.dir, planned[0]["to"], [target], force=True)
-            upgraded.append({**planned[0], "agents": [s.agent for s in items]})
+            by_skill.setdefault(item.dir, []).append((target, planned[0], items))
+    for skill_dir, operations in by_skill.items():
+        engine.fetch_and_install(source, skill_dir, operations[0][1]["to"],
+                                 [entry[0] for entry in operations], force=True)
+        upgraded.extend({**plan, "agents": [s.agent for s in items]}
+                        for _, plan, items in operations)
     return {"upgraded": upgraded, "skipped": skipped, "source": getattr(source, "name", "")}

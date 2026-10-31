@@ -1,6 +1,6 @@
 """init：首次初始化引导（幂等）。交互命令，由用户在终端亲自执行。"""
 
-from core.errors import CliError
+import bootstrap
 
 
 def register(sub) -> None:
@@ -8,4 +8,4 @@ def register(sub) -> None:
 
 
 def handler(args, ctx) -> dict:
-    raise CliError("NOT_IMPLEMENTED", "命令 'init' 尚未实现")
+    return bootstrap.initialize(ctx)

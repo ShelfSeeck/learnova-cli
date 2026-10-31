@@ -1,11 +1,11 @@
 ---
 name: learnova-cli
-description: Learnova 技能社区的发现与分发入口。当用户明确要求搜索、查看、安装、升级或卸载 Learnova 社区的 agent skill，或需要将 PDF、Markdown 构建为知识参考型 Skill，或当前任务需要额外的专用 Skill 能力而现有能力不足时使用。支持 Claude Code、OpenCode、Codex CLI。
+description: Learnova 技能社区的发现与分发入口。当用户明确要求搜索、查看、安装、升级、卸载或发布 Learnova 社区的 agent skill、查询审核或操作账号，或需要将 PDF、Markdown 构建为知识参考型 Skill，或当前任务需要额外的专用 Skill 能力而现有能力不足时使用。支持 Claude Code、OpenCode、Codex CLI。
 ---
 
 # Learnova CLI
 
-Learnova 可发现和管理社区 Skill，也可从 PDF 或 Markdown 构建本地知识参考型 Skill。由宿主 Agent 理解意图、组织操作并作语义判断；仅询问真正缺少的信息。当前社区检索与安装使用 Git 镜像；账号、在线后端检索和发布尚未实现。
+Learnova 可发现和管理社区 Skill，也可从 PDF 或 Markdown 构建本地知识参考型 Skill。由宿主 Agent 理解意图、组织操作并作语义判断；仅询问真正缺少的信息。未登录使用 Git 镜像；配置后端并登录后优先在线源，必要时回退镜像。
 
 ## 一句话开始
 
@@ -15,6 +15,7 @@ Learnova 可发现和管理社区 Skill，也可从 PDF 或 Markdown 构建本�
 - “找一个适合这个任务的 Skill”或“看看这个候选”：按需搜索、查看并判断，读 [发现指南](references/discovery.md)。
 - “安装这个 Skill”“看看安装了什么”“升级或卸载它”：读 [安装与本地管理](references/installation.md)。
 - “把这本课本生成一个方便查阅和问答的 Skill”“继续上次没完成的生成”或“打包刚生成的 Skill”：读 [构建指南](references/building.md)。打包是本地生成 ZIP，不是发布。
+- “初始化配置”“登录”“发布这个 Skill”或“查看审核结果”：读 [账号与发布](references/accounts.md)。登录必须由本人在终端输入凭证。
 
 沿用对话中明确的文件、项目和输出选择；任务标识和命令输出由 Agent 处理。需要找旧任务时只检查相关项目的任务记录，确有歧义才询问。项目明确且未指定输出时，说明默认项目路径并继续；输出含义不明或需要覆盖现有目录时才询问。使用生成的 Skill 时让宿主加载其路径，或明确读取其 `SKILL.md`；不要假设自动实时重载。
 
@@ -42,6 +43,7 @@ Windows PowerShell 使用：
 - 需要安装、查看本地安装、升级或卸载：读取 [references/installation.md](references/installation.md)。
 - 需要从用户任务出发完成“发现 → 判断 → 安装 → 使用”的完整流程：读取 [references/agent-workflow.md](references/agent-workflow.md)。
 - 需要从 PDF 或 Markdown 构建知识参考型 Skill：读取 [references/building.md](references/building.md)。
+- 需要初始化、账号操作、提交发布或查询审核：读取 [references/accounts.md](references/accounts.md)。
 - 只需要查询准确命令和参数：读取 [references/commands.md](references/commands.md)。
 - 需要了解镜像、缓存、离线模式或客户端配置：读取 [references/configuration.md](references/configuration.md)。
 
@@ -51,4 +53,6 @@ Windows PowerShell 使用：
 
 - 默认非交互，优先让 Agent 自己完成检索、详情读取和安装。
 - 同名 Skill 冲突默认停止；只有用户明确要求覆盖时才使用 `--force`。
-- 尚未实现的 `init`、`login`、`logout`、`whoami`、`publish`、`status` 不要调用。
+- `login` 只能请本人在真实终端执行，不代输、索取或保存密码。`init` 非交互时返回待确认问题，由用户确认配置后继续。
+- 发布前确认用户指定的目录、版本号和变更说明；显式参数即为本次确认。提交成功表示待审核，不等于已上架。服务端资源限制不可绕过。
+- 遥测只在登录且显式配置同源端点时发送安装事件；`LEARNOVA_TELEMETRY=0` 或 `telemetry=off` 可关闭。未配置端点、缺少有效访问凭证或发送失败均不影响安装。

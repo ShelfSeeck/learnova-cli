@@ -57,7 +57,7 @@ python -m unittest tests.test_mirror_sync -v
 |---|---|---|
 | `BUILD_PLAN_INVALID` | 构建切分方案或语义元数据非法 | 2 |
 | `BUILD_INTEGRITY_FAILED` | 构建产物或来源覆盖校验失败 | 1 |
-| `NOT_IMPLEMENTED` | 功能尚未实现 | 1 |
+| `NOT_IMPLEMENTED` | 保留兼容错误码，旧版本能力未实现 | 1 |
 | `SKILL_NOT_FOUND` | 索引中不存在指定技能 | 1 |
 | `VERSION_NOT_FOUND` | 索引中不存在指定版本 | 1 |
 | `SKILL_NOT_INSTALLED` | 本地 agent 目录中未安装指定技能 | 1 |
@@ -75,6 +75,11 @@ python -m unittest tests.test_mirror_sync -v
 | `SKILL_CONFLICT` | 目标目录已存在同名技能 | 3 |
 | `UNAUTHORIZED` | 凭证失效或未登录 | 4 |
 | `HTTP_ERROR` / `UNREACHABLE` | 后端 HTTP 错误 / 服务不可达 | 1 |
+| `BACKEND_NOT_CONFIGURED` | 需要账号功能但未配置后端 | 1 |
+| `BACKEND_RESPONSE_INVALID` | 后端返回结构不符合客户端契约 | 1 |
+| `SKILL_AMBIGUOUS` | 技能名称对应多个社区条目，无法确定稳定目录 | 2 |
+| `PUBLISH_PACKAGE_INVALID` | 待发布目录元数据、文件或路径不合法 | 2 |
+| `PUBLISH_FAILED` | 发布流程未能完成 | 1 |
 
 ## 修改镜像仓结构或 index.json
 
@@ -120,7 +125,7 @@ python -m unittest tests.test_mirror_sync -v
 
 解析内容异常必须在 parser 边界替换成固定安全消息，不透传共享 Markdown 抽取函数的输入标签。HTTP 响应头读取前的连接断开同样翻译为 `HTTP_ERROR`，且不附带底层异常信息。
 
-新增解析配置必须纳入 config 的集中依赖组，供 jobs seals 和 pipeline reconfigure 同时使用。远端 HTTP 测试仅用 localhost 临时服务，SDK/pypdf 用可替换依赖边界；覆盖认证不泄露、签名 URL 不落盘、上传/轮询/下载中断、完成分片复用、ZIP 安全、页偏移和安装包内完整构建。完整 unittest 与 T1 都须保持通过。自动模型适配和运行时 agent 指引已实现；真实服务认证验收待完成。
+新增解析配置必须纳入 config 的集中依赖组，供 jobs seals 和 pipeline reconfigure 同时使用。远端 HTTP 测试仅用 localhost 临时服务，SDK/pypdf 用可替换依赖边界；覆盖认证不泄露、签名 URL 不落盘、上传/轮询/下载中断、完成分片复用、ZIP 安全、页偏移和安装包内完整构建。完整 unittest 与 T1 都须保持通过。官方云端解析与自动模型已通过真实服务验收；本地 Gradio 依部署单独验收。
 
 自动判断错误 `BUILD_MODEL_REQUEST_FAILED` 和 `BUILD_MODEL_RESPONSE_INVALID` 使用固定脱敏信息；模型方案仍由 `BUILD_PLAN_INVALID` 校验。修改随包分发的判断规则会让活动任务从切片阶段重新判断并保留解析结果；旧请求失效。完成任务保持历史状态，只有显式 resume --from 才重新验证依赖。运行中仅解析轮询间隔变化不会使解析结果失效。
 

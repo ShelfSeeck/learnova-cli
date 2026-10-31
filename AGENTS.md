@@ -2,6 +2,8 @@
 
 Learnova 技能社区的分发工具（learnova-cli），以 agent skill 形式经 `npx skills` 分发，功能由纯 Python 脚本实现。
 
+正式主仓与分发入口为 `https://git.nju.edu.cn/learnova/learnova-cli`，当前 `main` 跟踪 `njugit/main`。`origin` 是保留的 GitHub remote；同步 GitHub 不是主仓开发或发行的前置条件。
+
 ## 先读文档
 
 改动任何代码前，按序阅读：
@@ -17,12 +19,15 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 ## 开发进度
 
 - [x] 设计文档（cli-spec / mirror-spec / architecture）+ 按架构的 scripts 骨架
-- [ ] M1 镜像链路：`mirror/` producer 核心已实现并通过本地/生产快照验证；待初始化正式镜像仓并部署调度
+- [x] M1 镜像链路：`mirror/` producer 已实现并通过本地/生产快照验证；维护者确认同步服务已部署，正式镜像可匿名读取，不重复部署
 - [x] M2 CLI 核心：MirrorSource、engine.install/uninstall、install/uninstall/upgrade 命令
-- [ ] M3 账号与发布：login/publish/status、遥测、BackendSource、resolver 降级链、init
-- [ ] M4 发布：GitHub 建仓、`npx skills add` 验证、PowerShell 实测
+- [x] M3 CLI：login/logout/whoami、publish/status、BackendSource、resolver 降级链、init 已实现并通过独立复核；遥测客户端已实现，需显式配置后端专用端点才发送
+- [ ] M4 发布：正式主仓已上线且远端 main 与当前提交一致；待核实 `npx skills add`、实际 CI 多平台运行与 PowerShell 的验收记录
 
-- [x] 本地文档构建：Markdown/PDF、宿主及自动判断、断点恢复和显式打包；真实服务认证验收待完成
+- [x] 本地文档构建：Markdown/PDF、宿主及自动判断、断点恢复和显式打包；官方云端 PDF 与自动模型构建已通过真实服务验收，本地 Gradio 依实际部署单独验收
+- [x] 已复现缺陷：镜像缓存串源、跨 agent 升级回滚、构建返回过期请求等已修复，并覆盖回归与独立复核
+
+进度须区分已有实现、待验收和外部状态待核实；通用部署检查表的未勾选项不等于未实现。对接后端前核对现有接口，不将旧计划中的接口缺口直接当作当前事实。
 
 ## 硬规则
 
@@ -31,7 +36,7 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 - 输出契约（JSON 字段名、error code、退出码）发布后只增不改不删。
 - 用户级状态在 `~/.learnova/`；构建配置及任务可位于项目 `.learnova/`，不引入数据库。
 - 遥测默认不收集，仅登录后上报 install 事件，fire-and-forget。
-- 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端/镜像地址默认值发行时注入，源码留空。
+- 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端地址默认值发行时注入，源码留空。镜像地址保留源码中的公开正式默认值，允许用户配置覆盖。
 - 提交前跑 `python -m unittest discover tests -v`；镜像链路测试另跑 `python tests/t1_mirror_flow.py`。
 
 ## 目录速查

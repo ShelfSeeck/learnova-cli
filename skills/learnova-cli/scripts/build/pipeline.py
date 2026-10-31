@@ -13,6 +13,7 @@ from urllib.parse import unquote, urlsplit
 import engine
 from core import chunking, document, skill_build, page_provenance
 from core.errors import CliError, ConflictError
+from core.package_paths import is_hidden_path
 from . import config, jobs, transactions
 
 STAGES = ('parsing', 'chunking', 'indexing', 'finalize')
@@ -540,7 +541,7 @@ class BuildService:
                     if self.decision is None:
                         raise CliError('BUILD_ADAPTER_UNAVAILABLE', '自动判断适配器不可用')
                     answer = self.decision.decide(state['request'], saved['config'])
-                    self.submit(task_id, {**state['request'], 'result': answer})
+                    state = self.submit(task_id, {**state['request'], 'result': answer})
                 except Exception as exc:
                     with jobs.locked(self.root, task_id) as path:
                         failed = jobs.read(path)
@@ -575,7 +576,7 @@ class BuildService:
                         if not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)) or not skill_build._safe_path(relative):
                             raise ValueError('unsafe file')
                         lower = name.lower()
-                        omit = (lower in excluded or lower == '.env' or lower.startswith(('.env.', '.learnova-'))
+                        omit = (is_hidden_path(relative) or lower in excluded or lower == '.env' or lower.startswith(('.env.', '.learnova-'))
                                 or lower.endswith(('.pem', '.key')) or lower in ('id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa'))
                         if omit:
                             if name in directories:
@@ -590,4 +591,5 @@ class BuildService:
             with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as out:
                 for name, content in files.items():
                     out.writestr(name, content)
-            return {'task_id': task_id, 'package': str(archive), 'guidance': '请通过可用渠道自行发布；CLI 尚未集成上传。'}
+            return {'task_id': task_id, 'package': str(archive),
+                    'guidance': '需要发布时，请确认版本与更新说明，再用 publish <当前成品目录> --version x.y.z --changelog ... 提交审核；本次打包不会自动上传。'}

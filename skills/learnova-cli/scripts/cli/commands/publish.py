@@ -3,7 +3,7 @@
 version 与 changelog 由用户确认后执行，agent 不代填。
 """
 
-from core.errors import CliError
+import publishing
 
 
 def register(sub) -> None:
@@ -15,4 +15,4 @@ def register(sub) -> None:
 
 
 def handler(args, ctx) -> dict:
-    raise CliError("NOT_IMPLEMENTED", "命令 'publish' 尚未实现")
+    return publishing.publish(ctx, args.directory, args.version, args.changelog)

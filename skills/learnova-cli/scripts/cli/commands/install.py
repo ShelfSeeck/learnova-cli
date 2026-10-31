@@ -27,7 +27,7 @@ def handler(args, ctx) -> dict:
     )
     source = resolver.resolve(ctx)
     installed = engine.fetch_and_install(source, skill_dir, version, targets, args.force)
-    telemetry.report("install", {"skill": skill_dir, "version": installed[0].version, "ts": time.time()})
+    telemetry.report("install", {"skill": skill_dir, "version": installed[0].version, "ts": time.time()}, ctx=ctx)
     return {
         "name": skill_dir,
         "version": installed[0].version,

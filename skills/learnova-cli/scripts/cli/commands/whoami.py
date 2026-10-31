@@ -1,6 +1,6 @@
 """whoami：查看当前登录状态。"""
 
-import store
+import auth
 
 
 def register(sub) -> None:
@@ -8,8 +8,4 @@ def register(sub) -> None:
 
 
 def handler(args, ctx) -> dict:
-    auth = store.load_auth()
-    return {
-        "logged_in": bool(auth.get("refresh_token")),
-        "username": auth.get("username"),
-    }
+    return auth.whoami(ctx)

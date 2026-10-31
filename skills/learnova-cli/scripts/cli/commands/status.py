@@ -1,6 +1,6 @@
-"""status：查询已提交版本的审核状态（依赖后端 publish-status 接口）。"""
+"""status：查询当前账号提交版本的审核状态。"""
 
-from core.errors import CliError
+import publishing
 
 
 def register(sub) -> None:
@@ -10,4 +10,4 @@ def register(sub) -> None:
 
 
 def handler(args, ctx) -> dict:
-    raise CliError("NOT_IMPLEMENTED", "命令 'status' 尚未实现")
+    return publishing.status(ctx, args.skill)

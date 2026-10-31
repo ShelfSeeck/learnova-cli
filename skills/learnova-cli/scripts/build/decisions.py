@@ -9,6 +9,8 @@ PROMPT_PATH = Path(__file__).with_name('prompts').joinpath('decision.txt')
 MAX_ROUNDS = 8
 MAX_CONTEXT = 48000
 MAX_RESPONSE = 65536
+INITIAL_OUTPUT_TOKENS = 2048
+MAX_OUTPUT_TOKENS = 8192
 
 
 def _invalid():
@@ -29,18 +31,27 @@ class Decision:
             secrets.append(parser_key)
         messages = [{'role': 'system', 'content': PROMPT_PATH.read_text(encoding='utf-8')},
                     {'role': 'user', 'content': json.dumps(request, ensure_ascii=False)}]
+        output_tokens = INITIAL_OUTPUT_TOKENS
         for _ in range(MAX_ROUNDS):
             if sum(len(m['content']) for m in messages) > MAX_CONTEXT:
                 raise _invalid()
             try:
                 response = net.request('POST', config_snapshot['llm_base_url'].rstrip('/') + '/chat/completions',
                                        {'model': config_snapshot['llm_model'], 'messages': messages,
-                                        'temperature': 0, 'max_tokens': 2048}, token=key,
+                                        'temperature': 0, 'max_tokens': output_tokens}, token=key,
                                        timeout=30, max_bytes=MAX_RESPONSE)
             except CliError:
                 raise CliError('BUILD_MODEL_REQUEST_FAILED', '模型请求失败；请检查配置后重试') from None
             try:
-                content = response['choices'][0]['message']['content']
+                choice = response['choices'][0]
+                if not isinstance(choice, dict):
+                    raise ValueError()
+                if choice.get('finish_reason') == 'length':
+                    if output_tokens < MAX_OUTPUT_TOKENS:
+                        output_tokens = MAX_OUTPUT_TOKENS
+                        continue
+                    raise _invalid()
+                content = choice['message']['content']
                 if not isinstance(content, str) or len(content) > MAX_RESPONSE or any(secret in content for secret in secrets):
                     raise ValueError()
                 answer = json.loads(content)

@@ -22,13 +22,25 @@
 
 自动模式另需 `llm_base_url`（接口基地址）、`llm_model`、`llm_key_env`（环境变量名）。由操作员在终端设置该环境变量，绝不把密钥写入配置或提交结果。创建时加 `--mode auto`，然后 `build run <task_id> --project-root <PROJECT>`。模型只返回判断或请求额外分页；网络或非法响应失败后检查配置，`build resume <task_id> --project-root <PROJECT>` 再运行，不会静默切换模式。
 
+远端解析使用 MinerU v4 的上传、轮询和结果 ZIP 协议；`remote_endpoint` 为服务 API 根地址，不是单次签名上传链接。本地解析通过 Gradio 的 `local_api_name` 调用，默认 `/convert_to_markdown_stream`；服务须提供相容签名。示例配置（地址及模型为占位符）：
+
+```bash
+CLI build config set remote_endpoint https://parser.example.invalid --project-root <PROJECT>
+CLI build config set remote_key_env MINERU_API_KEY --project-root <PROJECT>
+CLI build config set llm_base_url https://model.example.invalid/v1 --project-root <PROJECT>
+CLI build config set llm_model example-model --project-root <PROJECT>
+CLI build config set llm_key_env MODEL_API_KEY --project-root <PROJECT>
+```
+
+其中 `CLI` 须替换为前文的 Python 入口。`build config get --project-root <PROJECT>` 查看有效配置；页面分片、语言、OCR、超时和大小上限均可配置。解析进行中时 `next` 只轮询一次，`run` 会等待并继续轮询；`--max-steps` 限制推进次数，达到上限后查看返回状态再继续，不复用旧判断请求。
+
 ## 暂停、恢复和交付
 
 `build pause <task_id> --project-root <PROJECT>` 暂停；`build resume <task_id> --mode agent --project-root <PROJECT>` 切换到宿主模式（自动模式用 `--mode auto`）并保留有效结果。`build reconfigure <task_id> --set KEY=VALUE --project-root <PROJECT>` 显式改变活动任务快照并使受影响阶段失效；已完成任务修改这类配置前先执行 `resume --from`，`read_limit` 等不触发构建的调整仍可直接更新；`build resume <task_id> --from chunking --project-root <PROJECT>` 显式重置切片及后续结果；`--from` 也可指定 `parsing`、`indexing` 或 `finalize`。活动任务的输入变更会重新解析。活动任务的随包判断规则变更会保留解析结果并重新从切片判断，旧请求不再有效；已有成品仍遵守覆盖冲突规则；用户明确授权覆盖后，使用 `build resume <task_id> --force --project-root <PROJECT>`，再继续推进；省略 `--force` 不撤销已授权的覆盖。任务私有状态在项目 `.learnova/builds/`，不应分发。
 
 项目技能的管理命令以当前工作目录为项目根：在 `<PROJECT>` 目录运行 `list --project` 和 `uninstall <name> --project`；社区升级不会覆盖本地构建技能。用户明确要求打包刚生成的任务时，`build package <task_id> --project-root <PROJECT>` 校验当前成品并生成 ZIP；命令不上传或发布。
 
-完成后的 status/next/普通 resume 仅返回构建历史；成品可自由编辑或卸载，原输入移动和规则升级也不触发重建。确需重新生成时对原任务执行 `build resume <task_id> --from finalize --project-root <PROJECT>` 再 next；保留解析、切片和元数据，现有目标仍须明确授权 `--force` 才替换。package 校验当前 SKILL.md 元数据、安全路径和当前本地参考/图片，打包新增及编辑内容，排除管理记录、私有状态、版本库和凭证文件，不比对生成快照。来源记录自动生成，用户无需填写。
+完成后的 status/next/普通 resume 仅返回构建历史；成品可自由编辑或卸载，原输入移动和规则升级也不触发重建。确需重新生成时对原任务执行 `build resume <task_id> --from finalize --project-root <PROJECT>` 再 next；保留解析、切片和元数据，现有目标仍须明确授权 `--force` 才替换。package 校验当前 SKILL.md 元数据、安全路径和当前本地参考/图片，打包新增及编辑内容，排除所有隐藏文件/目录、管理记录、私有状态、版本库和凭证文件，不比对生成快照。来源记录自动生成，用户无需填写。
 
 `build read` 读取私有任务中的生成快照，只用于构建检查或继续生成。日常使用 Skill 时直接读取当前成品的 `SKILL.md` 和参考文件，用户编辑后的内容以成品目录为准。
 

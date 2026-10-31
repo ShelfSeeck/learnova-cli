@@ -1,6 +1,6 @@
 """logout：清除本地凭证。"""
 
-import store
+import auth
 
 
 def register(sub) -> None:
@@ -8,5 +8,4 @@ def register(sub) -> None:
 
 
 def handler(args, ctx) -> dict:
-    store.clear_auth()
-    return {"ok": True, "message": "已退出登录"}
+    return auth.logout(ctx)

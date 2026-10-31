@@ -11,6 +11,7 @@ import json
 import os
 import tempfile
 import time
+import re
 from pathlib import Path
 
 from core.errors import CliError
@@ -26,6 +27,7 @@ DEFAULTS = {
     "backend_url": "",          # 发行时填入默认值
     "mirror_repo_url": DEFAULT_MIRROR_REPO_URL,
     "telemetry": "auto",        # auto=跟随登录态 / off=关闭
+    "telemetry_endpoint": "",   # 独立安装事件接口的同源绝对路径；未配置不发送
     "agents": "auto",           # auto=检测，或 ["claude", "codex"] 子集
     "install_scope": "user",    # user / project
     "index_cache_ttl": 86400,   # 秒
@@ -58,6 +60,9 @@ def _write_json(path: Path, data: dict) -> None:
 
 
 def _validate_config(config: dict, code: str, exit_code: int = 1) -> dict:
+    endpoint = config["telemetry_endpoint"]
+    if not isinstance(endpoint, str) or (endpoint and not re.fullmatch(r"/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+", endpoint)):
+        raise CliError(code, "telemetry_endpoint 必须是无查询参数的同源 API 路径", exit_code=exit_code)
     for key, choices in CONFIG_CHOICES.items():
         if config[key] not in choices:
             raise CliError(code, f"配置 {key} 只能是 {', '.join(sorted(choices))}", exit_code=exit_code)
@@ -114,10 +119,24 @@ def clear_auth() -> None:
     AUTH_PATH.unlink(missing_ok=True)
 
 
-def load_index_cache() -> tuple[dict | None, bool]:
+def _cache_source(mirror_url: str | None = None) -> str:
+    value = load_config()["mirror_repo_url"] if mirror_url is None else mirror_url
+    return value.strip().rstrip("/")
+
+
+def load_index_cache(mirror_url: str | None = None) -> tuple[dict | None, bool]:
     """返回 (index 或 None, 是否超过 TTL)。"""
     raw = _read_json(INDEX_CACHE_PATH)
     if not raw:
+        return None, True
+    source = _cache_source(mirror_url)
+    cached_source = raw.get("mirror_repo_url")
+    if cached_source is None:
+        if source != _cache_source(DEFAULT_MIRROR_REPO_URL):
+            return None, True
+    elif not isinstance(cached_source, str):
+        raise CliError("LOCAL_STATE_INVALID", "index_cache.json 来源非法")
+    elif cached_source != source:
         return None, True
     fetched_at = raw.get("fetched_at")
     index = raw.get("index")
@@ -127,8 +146,10 @@ def load_index_cache() -> tuple[dict | None, bool]:
     return index, stale
 
 
-def save_index_cache(index: dict) -> None:
-    _write_json(INDEX_CACHE_PATH, {"fetched_at": time.time(), "index": index})
+def save_index_cache(index: dict, mirror_url: str | None = None) -> None:
+    _write_json(INDEX_CACHE_PATH, {
+        "fetched_at": time.time(), "index": index, "mirror_repo_url": _cache_source(mirror_url),
+    })
 
 
 def telemetry_enabled() -> bool:

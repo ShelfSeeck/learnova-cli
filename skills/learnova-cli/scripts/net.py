@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 import socket
 import time
 import http.client
@@ -28,7 +29,8 @@ def _origin(url: str) -> tuple[str, str, int | None]:
 class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirected is not None and req.has_header("Authorization") and _origin(req.full_url) != _origin(newurl):
+        authenticated = req.has_header("Authorization") or req.has_header("Cookie")
+        if redirected is not None and authenticated and _origin(req.full_url) != _origin(newurl):
             raise urllib.error.HTTPError(
                 req.full_url,
                 code,
@@ -42,13 +44,25 @@ class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_SafeRedirectHandler())
 
 
-def _build(url: str, method: str = "GET", token: str | None = None) -> urllib.request.Request:
+def _build(url: str, method: str = "GET", token: str | None = None,
+           headers: dict | None = None) -> urllib.request.Request:
     req = urllib.request.Request(url, method=method)
     req.add_header("Accept", "application/json")
     req.add_header("User-Agent", USER_AGENT)
     if token:
-        req.add_header("Authorization", f"Bearer {token}")
+        headers = {**(headers or {}), "Authorization": f"Bearer {token}"}
+    _add_headers(req, headers)
     return req
+
+
+def _add_headers(req, headers) -> None:
+    for key, value in (headers or {}).items():
+        if (not isinstance(key, str) or not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", key)
+                or key.lower() in {"host", "content-length", "transfer-encoding", "connection",
+                                   "proxy-authorization", "proxy-connection", "keep-alive", "te", "trailer", "upgrade"}
+                or not isinstance(value, str) or any(ord(char) < 32 or ord(char) > 126 for char in value)):
+            raise CliError("BAD_USAGE", "HTTP 请求头无效", exit_code=2)
+        req.add_header(key, value)
 
 
 def _open(req: urllib.request.Request, timeout: float, allow_404: bool = False):
@@ -59,8 +73,11 @@ def _open(req: urllib.request.Request, timeout: float, allow_404: bool = False):
         if allow_404 and e.code == 404:
             return None
         if e.code == 401:
-            raise AuthError("UNAUTHORIZED", "凭证失效")
-        raise CliError("HTTP_ERROR", f"HTTP 请求失败 ({e.code})")
+            error = AuthError("UNAUTHORIZED", "凭证失效")
+        else:
+            error = CliError("HTTP_ERROR", f"HTTP 请求失败 ({e.code})")
+        error.http_status = e.code
+        raise error from None
     except (TimeoutError, socket.timeout) as exc:
         raise CliError("HTTP_TIMEOUT", "HTTP 请求超时") from exc
     except urllib.error.URLError as e:
@@ -113,17 +130,37 @@ def _read_limited(resp, max_bytes: int, deadline=None) -> bytes:
 
 def request(method: str, url: str, body: dict | None = None,
             token: str | None = None, timeout: float = DEFAULT_TIMEOUT,
-            max_bytes: int = MAX_JSON_BYTES) -> dict:
+            max_bytes: int = MAX_JSON_BYTES, *, headers: dict | None = None,
+            response_headers: dict | None = None, data: bytes | None = None,
+            content_type: str | None = None):
+    """JSON response; optional response headers use lowercase keys and lists of values."""
+    if body is not None and data is not None:
+        raise CliError("BAD_USAGE", "JSON 与原始请求内容不能同时指定", exit_code=2)
     deadline = time.monotonic() + timeout
-    req = _build(url, method, token)
+    req = _build(url, method, token, headers)
     if body is not None:
         req.data = json.dumps(body).encode()
         req.add_header("Content-Type", "application/json")
+    elif data is not None:
+        req.data = data
+        req.add_header("Content-Type", content_type or "application/octet-stream")
+    if content_type is not None:
+        _add_headers(req, {"Content-Type": content_type})
     try:
         with _open(req, timeout) as resp:
-            return json.loads(_read_limited(resp, max_bytes, deadline))
+            _capture_headers(resp, response_headers)
+            raw = _read_limited(resp, max_bytes, deadline)
+            if not raw and resp.status == 204:
+                return None
+            return json.loads(raw)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise CliError("HTTP_ERROR", "服务返回了非法 JSON") from exc
+
+
+def _capture_headers(resp, target: dict | None) -> None:
+    if target is not None:
+        target.clear()
+        target.update({key.lower(): resp.headers.get_all(key) for key in resp.headers})
 
 
 def get_text(url: str, timeout: float = DEFAULT_TIMEOUT, max_bytes: int = MAX_TEXT_BYTES) -> str | None:
@@ -146,14 +183,19 @@ def download(url: str, dest: Path, timeout: float = DOWNLOAD_TIMEOUT,
 
 def request_bytes(method: str, url: str, body: bytes | None = None,
                   token: str | None = None, timeout: float = DOWNLOAD_TIMEOUT,
-                  max_bytes: int = MAX_DOWNLOAD_BYTES) -> bytes:
+                  max_bytes: int = MAX_DOWNLOAD_BYTES, *, headers: dict | None = None,
+                  response_headers: dict | None = None,
+                  content_type: str | None = None) -> bytes:
     """Raw binary request/response; callers explicitly choose auth and byte limits."""
     deadline = time.monotonic() + timeout
-    req = _build(url, method, token)
+    req = _build(url, method, token, headers)
     req.add_header("Accept", "application/octet-stream")
     if body is not None:
         req.data = body
         # An empty value preserves the upload signature and prevents urllib's form default.
-        req.add_header("Content-Type", "")
+        _add_headers(req, {"Content-Type": content_type if content_type is not None else ""})
+    elif content_type is not None:
+        _add_headers(req, {"Content-Type": content_type})
     with _open(req, timeout) as resp:
+        _capture_headers(resp, response_headers)
         return _read_limited(resp, max_bytes, deadline)
