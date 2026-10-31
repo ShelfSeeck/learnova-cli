@@ -153,6 +153,7 @@ def request_bytes(method: str, url: str, body: bytes | None = None,
     req.add_header("Accept", "application/octet-stream")
     if body is not None:
         req.data = body
-        req.add_header("Content-Type", "application/octet-stream")
+        # An empty value preserves the upload signature and prevents urllib's form default.
+        req.add_header("Content-Type", "")
     with _open(req, timeout) as resp:
         return _read_limited(resp, max_bytes, deadline)
