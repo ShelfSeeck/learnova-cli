@@ -148,6 +148,8 @@ mirror/
 
 常规入口 start/work/submit --continue 由 BuildService 接管推进，宿主只接收语义工作；底层 next/run 保持兼容。`build/preflight.py` 做只读本机预检查，不发送网络请求或读取密钥值到输出；config 提供原子预设写入。切片建议由纯 chunking 生成并仍经语义提交校验；批量元数据先完整验证再更新一次任务断点。原始 HTML 表格内容不作为 Markdown 链接解析，但其中实际 HTML href/src 仍需检查；文本和偏移不因校验改变。
 
+配置解析与服务缺项判断统一由 config 负责，失败状态只走同一保存入口。外部响应在解析适配器校验，pipeline 使用适配器已确认的结果，避免内部层层重复验型；任务载入、路径、原文覆盖和目录事务的边界校验保留。
+
 正式目录事务由 `engine.commit_directories(candidate, outputs, force)` 共享：调用方先验证候选，输出是明确的最终目录列表，不要求社区版本。所有目标先暂存再替换，失败清理并回滚；拒绝不安全和符号链接目标。社区安装仍单独校验版本。本地构建来源记录仅为 schema_version 2、source local-build、version null；来源扫描兼容旧 schema 1 的基础标记，不递归读取或校验文件；社区 sidecar 有效且目录匹配时优先。项目管理额外扫描统一目录并按物理路径去重；升级仅选择社区来源的具体路径。
 
 目录提交失败后逐个尝试恢复全部目标。若部分恢复失败，保留受阻目标的备份并清理其余暂存目录；返回 `DIRECTORY_ROLLBACK_FAILED`（退出码 1），消息包含提交错误、各恢复错误及备份位置，异常链保留原提交错误。

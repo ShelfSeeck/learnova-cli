@@ -126,10 +126,7 @@ class BuildService:
         source = Path(input_path).absolute()
         if not source.is_file() or source.suffix.lower() not in ('.md', '.markdown', '.pdf'):
             invalid('输入必须是存在的 Markdown 或 PDF 文件')
-        cfg = config.load(self.root)
-        if parser:
-            cfg['parser'] = parser
-        config.validate(cfg)
+        cfg = config.load(self.root, {'parser': parser} if parser else None)
         fingerprint = digest(_input(source))
         task_id, path = jobs.create_dir(self.root)
         if output:
@@ -275,16 +272,8 @@ class BuildService:
         scope = req['scope']
         if scope == 'llm' and s['mode'] == 'agent':
             missing = []
-        elif scope == 'llm':
-            keys = ('llm_base_url', 'llm_model', 'llm_key_env')
-            missing = [k for k in keys if not s['config'][k] or (k.endswith('_key_env') and not os.environ.get(s['config'][k]))]
-        elif scope == 'parser':
-            keys = [s['config']['parser'] + '_endpoint']
-            if s['config']['parser'] == 'remote':
-                keys.append('remote_key_env')
-            missing = [k for k in keys if not s['config'][k] or (k.endswith('_key_env') and not os.environ.get(s['config'][k]))]
         else:
-            raise CliError('BUILD_INTEGRITY_FAILED', '无效配置请求')
+            missing = config.missing(s['config'], s['config']['parser'] if scope == 'parser' else scope)
         if not missing:
             s['request'] = None
             s['status'] = 'pending'
@@ -301,9 +290,7 @@ class BuildService:
             source = Path(s['input'])
             supplied = None
             if source.suffix.lower() == '.pdf':
-                key = s['config']['parser'] + '_endpoint'
-                needed = [key] + (['remote_key_env'] if s['config']['parser'] == 'remote' else [])
-                missing = [k for k in needed if not s['config'][k] or (k.endswith('_key_env') and not os.environ.get(s['config'][k]))]
+                missing = config.missing(s['config'], s['config']['parser'])
                 if missing:
                     self._request(s, 'configuration', 'parser', questions=missing); return
                 if self.parser is None:
@@ -315,14 +302,10 @@ class BuildService:
                     s['parser_state'] = state
                     jobs.write(path, s)
                 parsed = self.parser.advance(source, s['config'], s['parser_state'], checkpoint)
-                if not isinstance(parsed, dict) or parsed.get('status') not in ('running', 'completed'):
-                    raise CliError('BUILD_INTEGRITY_FAILED', '解析器返回格式无效')
                 if parsed['status'] == 'running':
                     s['progress'] = parsed.get('progress')
                     return
-                text, supplied = parsed.get('markdown'), parsed.get('assets')
-                if not isinstance(text, str) or not isinstance(supplied, dict):
-                    raise CliError('BUILD_INTEGRITY_FAILED', '解析器返回格式无效')
+                text, supplied = parsed['markdown'], parsed['assets']
                 s['page_map'] = parsed.get('page_map')
                 s.pop('progress', None)
             else:
@@ -429,11 +412,15 @@ class BuildService:
                 jobs.write(path, s)
                 return self._public(s)
             except Exception as exc:
-                saved = jobs.read(path)
-                saved['status'] = 'failed'
-                saved['error'] = {'code': exc.code if isinstance(exc, CliError) else 'INTERNAL_ERROR', 'next': '检查配置或输入后执行 build resume 重试'}
-                jobs.write(path, saved)
+                self._save_failure(path, exc)
                 raise
+
+    @staticmethod
+    def _save_failure(path, error):
+        saved = jobs.read(path)
+        saved['status'] = 'failed'
+        saved['error'] = {'code': error.code if isinstance(error, CliError) else 'INTERNAL_ERROR', 'next': '检查配置或输入后执行 build resume 重试'}
+        jobs.write(path, saved)
 
     def read(self, task_id, start=0, end=None, limit=None, kind='text'):
         with jobs.locked(self.root, task_id) as path:
@@ -469,7 +456,6 @@ class BuildService:
                 raise CliError('BAD_USAGE', '无效读取范围', 2) from exc
 
     def submit_file(self, task_id, filename):
-        import json
         try:
             envelope = json.loads(Path(filename).read_text(encoding='utf-8'))
         except (OSError, ValueError) as exc:
@@ -631,7 +617,7 @@ class BuildService:
                     return state
                 with jobs.locked(self.root, task_id) as path:
                     saved = jobs.read(path)
-                    missing = [k for k in ('llm_base_url', 'llm_model', 'llm_key_env') if not saved['config'][k] or (k.endswith('_key_env') and not os.environ.get(saved['config'][k]))]
+                    missing = config.missing(saved['config'], 'llm')
                     if missing:
                         saved['request'] = None
                         self._request(saved, 'configuration', 'llm', questions=missing)
@@ -644,10 +630,7 @@ class BuildService:
                     self.submit(task_id, {**state['request'], 'result': answer})
                 except Exception as exc:
                     with jobs.locked(self.root, task_id) as path:
-                        failed = jobs.read(path)
-                        failed['status'] = 'failed'
-                        failed['error'] = {'code': exc.code if isinstance(exc, CliError) else 'INTERNAL_ERROR', 'next': '检查配置或输入后执行 build resume 重试'}
-                        jobs.write(path, failed)
+                        self._save_failure(path, exc)
                     raise
         return self.status(task_id)
 

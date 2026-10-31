@@ -75,13 +75,7 @@ def handler(args, ctx):
         if args.settings:
             if args.key or args.value is not None:
                 raise CliError('BAD_USAGE', '批量配置不能混用位置参数', 2)
-            values = {}
-            for setting in args.settings:
-                key, separator, value = setting.partition('=')
-                if not separator or not key or key in values:
-                    raise CliError('BAD_USAGE', '配置需使用不重复的 KEY=VALUE', 2)
-                values[key] = value
-            return config.set_values(root, values, args.user)
+            return config.set_values(root, config.parse_settings(args.settings), args.user)
         if not args.key or args.value is None:
             raise CliError('BAD_USAGE', '需要配置键和值', 2)
         return config.set_value(root, args.key, args.value, args.user)
@@ -103,14 +97,7 @@ def handler(args, ctx):
     if action == 'read':
         return service.read(args.task_id, args.start, args.end, args.limit, args.kind)
     if action == 'reconfigure':
-        values = config.preset_values(args.preset) if args.preset else {}
-        explicit = set()
-        for setting in args.settings:
-            key, separator, value = setting.partition('=')
-            if not separator or not key or key in explicit:
-                raise CliError('BAD_USAGE', '配置需使用不重复的 KEY=VALUE', 2)
-            values[key] = value
-            explicit.add(key)
+        values = {**(config.preset_values(args.preset) if args.preset else {}), **config.parse_settings(args.settings)}
         if not values:
             raise CliError('BAD_USAGE', '需要 --preset 或 --set', 2)
         return service.reconfigure(args.task_id, values)
@@ -122,7 +109,7 @@ def handler(args, ctx):
                 state = service.submit_file(args.task_id, args.file)
             else:
                 state = service.submit(args.task_id, json.loads(args.data))
-        except (OSError, ValueError) as exc:
+        except json.JSONDecodeError as exc:
             raise CliError('BAD_USAGE', '无法读取 JSON 结果', 2) from exc
         return service.work(args.task_id, args.batch_size, args.max_steps) if args.continue_build else state
     if action == 'resume':
