@@ -46,6 +46,16 @@ def scan(text):
                         end_i += 1
                         break
                     end_i += 1
+        elif re.match(r'^ {0,3}<table(?:\s|>)', raw, re.I):
+            kind = 'html_table'
+            depth = 0
+            end_i = i
+            while end_i < len(lines):
+                for tag in re.finditer(r'<(/?)table\b[^>]*>', lines[end_i], re.I):
+                    depth += -1 if tag.group(1) else 1
+                end_i += 1
+                if depth <= 0:
+                    break
         elif raw.startswith(('    ', '\t')):
             kind = 'indented_code'
             while end_i < len(lines) and (lines[end_i].startswith(('    ', '\t')) or not lines[end_i].strip()):

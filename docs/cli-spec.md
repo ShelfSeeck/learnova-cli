@@ -137,6 +137,20 @@ login（用户亲自执行）
 
 ## 本地文档构建
 
+常规宿主流程使用 `build start <input> [--preset mineru] [--name NAME] [--output DIR] [--mode agent|auto] [--project-root DIR]`。它先做只读预检查，再创建任务并自动推进到必要的语义判断或完成；预检查未通过时返回 `status=needs_input`、`preflight`，不创建半成品任务。`--preset mineru` 表示明确选择官方云解析，会一次性保存项目解析配置，只保存环境变量名。
+
+`build tasks [--limit N] [--project-root DIR]` 返回项目任务的公开摘要（默认 20 条，最多 100），不暴露原文、图片数据或私有断点结构。
+
+`build doctor <input> [--mode agent|auto] [--project-root DIR]` 只检查输入、可选依赖、解析配置及当前进程能否看到所引用环境变量；不调用服务，不验证 Token 有效性，不输出密钥。其他终端中 export 的变量不保证对此进程可见。
+
+`build work <task-id> [--batch-size N] [--max-steps N] [--project-root DIR]` 自动处理机械阶段，默认一次提供最多 8 个分块的语义任务，N 为 1–16；上下文预算可能缩小批次，自动模型模式最多每批 4 块。`split_plan` 附 `proposal`（合法切点建议，Agent 可接受或修改）；无合法切点的超大块自动保留并标注，不要求 Agent 编写切片脚本。`chunk_metadata_batch` 的 scope 为 `{ids:[块ID]}`，request.chunks 包含每块范围、标题和有限原文采样；result 为 `{chunks:{块ID:{title,summary,keywords}}}`，必须覆盖这一批且整批校验通过才保存。
+
+`build submit <task-id> (--file JSON文件|--data JSON) --continue [--batch-size N] [--max-steps N]` 保存判断后继续推进至下一个语义请求或完成。任务结果附 `summary`，含分块数、已完成/待完成语义块数；达到推进上限时附 `next_action=work`。只需为语义请求提供结果，不读取或改写私有 job.json，不重算 seals，不改原文绕过校验。原有 create/next/run/submit 默认行为保留，供底层调用及旧客户端使用。
+
+`build config preset mineru [--project-root DIR] [--user]` 原子保存官方 MinerU 解析设置；也可 `build reconfigure <task-id> --preset mineru` 显式更新已有活动任务。预设为 remote、官方 endpoint、默认密钥环境变量名及 OCR 开启，不含任何密钥值。授权使用相应解析方式后由 Agent 执行，无须让用户填写配置 JSON；平台拒绝动作时报告实际原因，不能通过手写文件绕过拒绝。
+
+`build config set --set KEY=VALUE [--set KEY=VALUE ...]` 支持一次原子保存多项非敏感配置；保留原单键形式。模型 API 为可选项，显式 `--mode auto` 时 CLI 自行处理包括批量语义判断在内的完整流程；不启用时由宿主提供判断。`progress` 可包含经数值检查的服务已处理页数和固定服务状态，不把服务原始响应或签名 URL 放入任务。上传阶段被拒绝使用 `BUILD_PARSER_UPLOAD_FAILED`，与解析 API 的认证失败区分。结构扫描规则变化可复用未变的解析文本，仅重新切片。
+
 `build create <input> [--project-root DIR] [--name NAME] [--output DIR] [--mode agent|auto] [--parser remote|local] [--force]` 创建任务。项目根默认为当前目录；默认成品位于 `.agents/skills/<name>`。支持 Markdown 与 PDF，知识参考型 Skill 之外的类型不在范围内。
 
 `build next|status|pause <task-id> [--project-root DIR]` 推进、查看或暂停；`build read <task-id> [--start N] [--end N] [--limit N]` 分页读取标准 Markdown；`build submit <task-id> (--file JSON文件|--data JSON)` 提交结果；`build resume <task-id> [--from parsing|chunking|indexing|finalize] [--mode agent|auto] [--force]` 恢复；`build run <task-id> [--mode agent|auto] [--until STAGE] [--max-steps N]` 循环推进；`build package <task-id>` 显式打包并返回发布指导，不上传。上述任务命令均支持 `--project-root DIR`。
@@ -207,4 +221,4 @@ build package 读取当前成品目录，校验名称/描述、普通安全路�
 
 `build run` 达到步数上限时返回最后一次已保存操作之后的当前状态，不返回已提交的判断请求。同一技能的多个社区来源安装副本在升级时作为一个事务提交；目标之一失败则回滚本次该技能全部目标，来源为本地构建或未知的副本仍跳过。
 
-自动判断默认请求最多 2048 输出 token；服务明确返回 `finish_reason=length` 时，仅允许将预算提高至 8192 后重试一次，仍受总请求次数与响应大小限制。再次截断返回既有格式错误，不接受不完整判断。
+普通自动判断默认请求最多 2048 输出 token，批量元数据最多 8192；服务明确返回 `finish_reason=length` 且预算尚未到 8192 时，允许提高后重试一次，仍受总请求次数与响应大小限制。达到上限后再次截断返回既有格式错误，不接受不完整判断。

@@ -335,6 +335,9 @@ class Parser:
                 self._local(source, cfg, state, part, number, checkpoint)
             return {'status': 'running', 'progress': {'completed_parts': sum(p['status'] == 'done' for p in state['parts']),
                     'total_parts': len(state['parts']), 'part': number + 1, 'state': part['status'],
+                    'service_state': part.get('service_state'), 'total_pages': state['page_count'],
+                    'completed_pages': sum(p['end_page'] - p['start_page'] for p in state['parts'] if p['status'] == 'done')
+                                       + (part.get('extracted_pages', 0) if part['status'] != 'done' else 0),
                     'warnings': list(state['warnings'])}}
         texts, assets, ranges, offset = [], {}, [], 0
         for part in state['parts']:
@@ -378,7 +381,12 @@ class Parser:
             if not isinstance(urls, list) or len(urls) != 1:
                 _error()
             upload = _url(urls[0])
-            net.request_bytes('PUT', upload, body=content, timeout=cfg['parser_upload_timeout'], max_bytes=1024 * 1024)
+            try:
+                net.request_bytes('PUT', upload, body=content, timeout=cfg['parser_upload_timeout'], max_bytes=1024 * 1024)
+            except CliError as exc:
+                if exc.code in ('HTTP_ERROR', 'UNAUTHORIZED'):
+                    raise CliError('BUILD_PARSER_UPLOAD_FAILED', '预签名文件上传被拒绝；检查上传头或链接时效，恢复任务重取上传链接。此阶段不使用 API Token') from None
+                raise
             part['status'] = 'uploaded'
             checkpoint(state)
             return
@@ -391,6 +399,12 @@ class Parser:
         if result.get('data_id') not in (None, part['data_id']):
             _error()
         status = result.get('state')
+        if status in ('pending', 'running', 'converting', 'waiting-file', 'done', 'failed'):
+            part['service_state'] = status
+            progress = result.get('extract_progress')
+            extracted = progress.get('extracted_pages') if isinstance(progress, dict) else None
+            if type(extracted) is int and 0 <= extracted <= part['end_page'] - part['start_page']:
+                part['extracted_pages'] = extracted
         if status == 'done':
             url = _url(result.get('full_zip_url'))
             part['status'] = 'downloading'

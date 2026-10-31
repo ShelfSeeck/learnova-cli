@@ -173,6 +173,17 @@ class CompletionDefectsTest(unittest.TestCase):
             source._files('/community/skills/fixture/versions/fixture')
         self.assertEqual(caught.exception.code, 'SKILL_PACKAGE_INVALID')
 
+    def test_batch_decision_keeps_the_managed_workflow_output_budget(self):
+        expected = {'chunks': {'part': {'title': 'Topic', 'summary': 'Summary', 'keywords': ['sample']}}}
+        def model(method, url, body, **kwargs):
+            if body['max_tokens'] < 8192:
+                return {'choices': [{'finish_reason': 'length', 'message': {'content': ''}}]}
+            return {'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps({'result': expected})}}]}
+        config = {'llm_key_env': 'SYNTHETIC_MODEL_KEY', 'llm_base_url': 'https://example.invalid', 'llm_model': 'fixture'}
+        with patch.dict(os.environ, {'SYNTHETIC_MODEL_KEY': 'fixture-value'}), patch('net.request', side_effect=model) as request:
+            self.assertEqual(Decision(lambda *a: {}).decide({'kind': 'chunk_metadata_batch'}, config), expected)
+        self.assertEqual(request.call_count, 1)
+
     def test_publish_preserves_valid_yaml_comments_and_excludes_hidden_credentials(self):
         folder = self.root / 'skill'
         folder.mkdir()

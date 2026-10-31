@@ -31,7 +31,7 @@ class Decision:
             secrets.append(parser_key)
         messages = [{'role': 'system', 'content': PROMPT_PATH.read_text(encoding='utf-8')},
                     {'role': 'user', 'content': json.dumps(request, ensure_ascii=False)}]
-        output_tokens = INITIAL_OUTPUT_TOKENS
+        output_tokens = MAX_OUTPUT_TOKENS if request.get('kind') == 'chunk_metadata_batch' else INITIAL_OUTPUT_TOKENS
         for _ in range(MAX_ROUNDS):
             if sum(len(m['content']) for m in messages) > MAX_CONTEXT:
                 raise _invalid()
@@ -68,7 +68,8 @@ class Decision:
                 start = read.get('start', 0)
                 limit = read.get('limit', 100)
                 end = read.get('end')
-                if kind not in ('text', 'boundaries', 'headings', 'chunks') or type(start) is not int or start < 0 or type(limit) is not int or not 1 <= limit <= 100 or (end is not None and (type(end) is not int or end < start)):
+                limit_max = config_snapshot['read_limit'] if kind == 'text' else 100
+                if kind not in ('text', 'boundaries', 'headings', 'chunks') or type(start) is not int or start < 0 or type(limit) is not int or not 1 <= limit <= limit_max or (end is not None and (type(end) is not int or end < start)):
                     raise ValueError()
                 page = self.reader(start, end, limit, kind)
                 rendered = json.dumps(page, ensure_ascii=False)

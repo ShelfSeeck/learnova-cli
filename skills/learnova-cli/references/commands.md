@@ -30,4 +30,4 @@ python "<skill-dir>/scripts/learnova.py" <command> [args] --json
 
 如果需要理解命令应该在什么场景使用，优先读取相应 workflow 文档，不要只靠本页参数表推断行为。
 
-构建命令包括 `build create|next|read|submit|run|status|pause|resume|reconfigure|package|config`；参数、结果和完整流程见 [building.md](building.md)。
+常规构建使用 `build start <input>`、`build work <task-id>`、`build submit <task-id> --file <result.json> --continue`；`build doctor <input>` 只读诊断，`build config preset mineru` 一次配置云解析。模型 API 可选，启用时给 start 加 `--mode auto`。旧 `create|next|read|submit|run|status|pause|resume|reconfigure|package|config` 保留；参数、结果和完整流程见 [building.md](building.md)。
