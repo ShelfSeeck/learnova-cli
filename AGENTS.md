@@ -22,7 +22,8 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 - [x] M1 镜像链路：`mirror/` producer 已实现并通过本地/生产快照验证；维护者确认同步服务已部署，正式镜像可匿名读取，不重复部署
 - [x] M2 CLI 核心：MirrorSource、engine.install/uninstall、install/uninstall/upgrade 命令
 - [x] M3 CLI：login/logout/whoami、publish/status、BackendSource、resolver 降级链、init 已实现并通过独立复核；遥测客户端已实现，需显式配置后端专用端点才发送
-- [ ] M4 发布：正式主仓已上线且远端 main 与当前提交一致；待核实 `npx skills add`、实际 CI 多平台运行与 PowerShell 的验收记录
+- [x] M4 分发实现：正式主仓与 `npx skills add` 三种 agent 安装已验收；Linux Python 3.10–3.13、POSIX 和 Linux PowerShell 入口通过，GitLab CI 配置已完成
+- [ ] M4 外部验收：候选分支的托管 CI、原生 Windows/macOS Runner 运行及后端事件端点上线，按实际环境记录结果
 
 - [x] 本地文档构建：Markdown/PDF、宿主及自动判断、断点恢复和显式打包；官方云端 PDF 与自动模型构建已通过真实服务验收，本地 Gradio 依实际部署单独验收
 - [x] 已复现缺陷：镜像缓存串源、跨 agent 升级回滚、构建返回过期请求等已修复，并覆盖回归与独立复核
