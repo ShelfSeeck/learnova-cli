@@ -64,7 +64,7 @@ python skills/learnova-cli/scripts/learnova.py status
 | [docs/operations.md](docs/operations.md) | 运行与维护手册（镜像仓配置、同步凭证、服务器准备、镜像链路验收） |
 | [docs/architecture.md](docs/architecture.md) | 实现架构（贡献者向） |
 | [docs/maintenance.md](docs/maintenance.md) | 维护手册：如何加新功能 |
-| [docs/ci.md](docs/ci.md) | 主仓 CI、可选真实服务验收与平台运行条件 |
+| [docs/ci.md](docs/ci.md) | 本地验收、可选真实服务检查与平台运行条件 |
 
 ## 运行要求
 

@@ -1,6 +1,6 @@
 # CI 与验收
 
-正式主仓使用仓根 `.gitlab-ci.yml`。`.github/workflows/` 是可选副本的等价检查；同步 GitHub 不是开发或发行前提。流水线定义已提供，实际运行记录和 runner 可用性须以托管平台为准。
+本轮使用本地统一入口完成验收。`.github/workflows/` 保留现有可选检查；同步 GitHub、运行托管流水线均不作为功能补全的前置条件。
 
 ## 必过检查
 
@@ -12,19 +12,9 @@ python tests/run_ci.py
 
 T0 包括纯逻辑、账号、在线源、发布、遥测和构建回归。T1 覆盖镜像检索、详情、固定版本安装、冲突、跨 Agent 升级、清单、卸载和严格离线零网络。`test_distribution.py` 另验证随包引用完整，以及复制到三种 Agent 项目布局后的独立运行。
 
-## 主仓作业
+## 平台检查
 
-| 作业 | 条件 | 内容 |
-|---|---|---|
-| `linux` | 分支或合并请求 | uv 提供 Python 3.10–3.13，运行统一入口 |
-| `windows` | `LEARNOVA_WINDOWS_RUNNER_TAG` 非空 | 对应原生 Windows runner；四个 Python 版本，必须验证 PowerShell |
-| `macos` | `LEARNOVA_MACOS_RUNNER_TAG` 非空 | 对应原生 macOS runner；四个 Python 版本 |
-| `backend-integration` | 后端 opt-in 与地址均配置 | 真实 T2，不阻塞合并 |
-| `mirror-smoke` | schedule 且镜像 opt-in | 真实公开镜像检索和安装；独立于必过检查 |
-
-Windows/macOS 标签变量必须指向已配置的原生 runner，预装 uv、git，Windows 还需 `pwsh`。未配置标签时不创建相应作业，不表示该平台已通过。Linux 作业安装固定版本 uv；测试本身仍用 `unittest`，不安装测试框架。
-
-Linux 容器默认经 [NJU 容器缓存](https://doc.nju.edu.cn/books/efe93/page/6c988) 拉取官方 Python slim 镜像，按上游 manifest 摘要固定内容。若 runner 使用其他网络，可用 `LEARNOVA_CI_IMAGE` 覆盖为可访问的同等 Python 3.12 Debian 镜像；无需更改宿主机 Docker 配置。
+现有 GitHub Actions 可运行 Linux、macOS、Windows 与 Python 3.10–3.13 的检查。真实后端和镜像冒烟仍需显式开关；没有真实运行记录的平台，不记为已验收。
 
 可在真实平台手动验收：
 
