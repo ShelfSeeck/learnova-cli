@@ -107,6 +107,9 @@ class Fixture:
                 self.send({'code': 0, 'data': {'batch_id': key, 'file_urls': [fixture.url + '/upload/' + key + '?signature=' + SIGNED]}})
             def do_PUT(self):
                 self.record()
+                if self.headers.get('Content-Type', ''):
+                    self.send(b'SignatureDoesNotMatch', 403)
+                    return
                 if fixture.fail_put:
                     self.send(b'error ' + SECRET.encode(), 503)
                     return

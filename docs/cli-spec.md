@@ -151,7 +151,7 @@ login（用户亲自执行）
 | `local_backend` | `pipeline` | 本地 backend 参数 |
 | `local_result_timeout` | 300 | 本地结果等待秒数上限 |
 
-远端 endpoint 是服务根 URL；POST `/api/v4/file-urls/batch` 顶层发送 `enable_formula/enable_table/language/model_version`，files 内发送通用文件名、`data_id/is_ocr`。PUT 上传原始 PDF，不带 bearer；GET `/api/v4/extract-results/batch/{batch_id}` 查询一次进度，再下载 `full_zip_url`。单次 next 只推进一个分片的一步，不循环等待云端任务。批次 ID 在上传、轮询、下载前落盘；签名 URL 只留内存。重启遇到等待上传且签名 URL 无法恢复的分片时，在 progress.warnings 和私有状态标记 `upload_resubmitted`，下一步重新提交该分片，已完成分片不重做。
+远端 endpoint 是服务根 URL；POST `/api/v4/file-urls/batch` 顶层发送 `enable_formula/enable_table/language/model_version`，files 内发送通用文件名、`data_id/is_ocr`。PUT 上传原始 PDF，不带 bearer；Content-Type 保持预签名要求的空值，并阻止 HTTP 库自动补入表单类型。GET `/api/v4/extract-results/batch/{batch_id}` 查询一次进度，再下载 `full_zip_url`。单次 next 只推进一个分片的一步，不循环等待云端任务。批次 ID 在上传、轮询、下载前落盘；签名 URL 只留内存。重启遇到等待上传且签名 URL 无法恢复的分片时，在 progress.warnings 和私有状态标记 `upload_resubmitted`，下一步重新提交该分片，已完成分片不重做。
 
 本地部署必须匹配显式 API：`file_path=handle_file(part.pdf), end_pages=分片页数, formula_enable, table_enable, language, backend, url=''`。通过 SDK submit/result 调用，独立进程限制请求与结果等待，隔离 SDK 日志；结果需含唯一一个 ZIP 文件，SDK 下载路径限制在临时结果目录。若部署输出签名不同，应配置 API 名称或使用匹配服务，不能冒充成功。SDK 如提供安全 event_id，立即保存后才等待结果；SDK 无跨进程恢复协议，未完成的本地任务重启会显式记录 `local_resubmitted`。已完成分片仍复用。
 
