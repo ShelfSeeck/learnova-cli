@@ -1,4 +1,5 @@
 """Independent, lazily loaded build configuration."""
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -58,9 +59,25 @@ def validate(data):
     return data
 
 
-def load(root):
+def load(root, overrides=None):
     return validate({**DEFAULTS, **store._read_json(store.LEARNOVA_HOME / 'build-config.json'),
-                     **store._read_json(Path(root) / '.learnova' / 'build-config.json')})
+                     **store._read_json(Path(root) / '.learnova' / 'build-config.json'), **(overrides or {})})
+
+
+def missing(data, service):
+    keys = {'remote': ('remote_endpoint', 'remote_key_env'), 'local': ('local_endpoint',),
+            'llm': ('llm_base_url', 'llm_model', 'llm_key_env')}[service]
+    return [key for key in keys if not data[key] or (key.endswith('_key_env') and not os.environ.get(data[key]))]
+
+
+def parse_settings(settings):
+    values = {}
+    for setting in settings:
+        key, separator, value = setting.partition('=')
+        if not separator or not key or key in values:
+            raise CliError('BAD_USAGE', '配置需使用不重复的 KEY=VALUE', 2)
+        values[key] = value
+    return values
 
 
 def parse_value(key, value):
@@ -81,9 +98,8 @@ def parse_value(key, value):
 
 
 def set_value(root, key, value, user=False):
-    value = parse_value(key, value)
-    set_values(root, {key: value}, user)
-    return {'key': key, 'value': value}
+    result = set_values(root, {key: value}, user)
+    return {'key': key, 'value': result['values'][key]}
 
 
 def preset_values(name):
@@ -97,6 +113,9 @@ def set_values(root, values, user=False):
     path = store.LEARNOVA_HOME / 'build-config.json' if user else Path(root) / '.learnova' / 'build-config.json'
     data = store._read_json(path)
     data.update(values)
-    validate({**DEFAULTS, **data} if user else {**load(root), **data})
+    if user:
+        validate({**DEFAULTS, **data})
+    else:
+        load(root, data)
     store._write_json(path, data)
     return {'values': values, 'scope': 'user' if user else 'project'}

@@ -1,6 +1,5 @@
 """Read-only build readiness checks; no service calls or secret values in output."""
 import importlib.util
-import os
 from pathlib import Path
 from core.errors import CliError
 from . import config
@@ -10,10 +9,7 @@ def inspect(root, input_path, mode='agent', parser=None):
     source = Path(input_path).absolute()
     if not source.is_file() or source.suffix.lower() not in ('.md', '.markdown', '.pdf'):
         raise CliError('BUILD_INPUT_INVALID', '输入必须是存在的 Markdown 或 PDF 文件', 2)
-    cfg = config.load(root)
-    if parser:
-        cfg['parser'] = parser
-    config.validate(cfg)
+    cfg = config.load(root, {'parser': parser} if parser else None)
     issues, dependencies = [], {}
     info = {'path': str(source), 'format': source.suffix.lower().lstrip('.'), 'bytes': source.stat().st_size}
     presence = {}
@@ -34,21 +30,15 @@ def inspect(root, input_path, mode='agent', parser=None):
                 info['sampled_text_layer'] = any((reader.pages[i].extract_text() or '').strip() for i in samples)
             except Exception:
                 raise CliError('BUILD_INPUT_INVALID', '无法读取 PDF 页信息，请检查文件是否完整或加密') from None
-        keys = [cfg['parser'] + '_endpoint'] + (['remote_key_env'] if cfg['parser'] == 'remote' else [])
-        missing = [key for key in keys if not cfg[key]]
+        missing = config.missing(cfg, cfg['parser'])
         if cfg['parser'] == 'remote':
-            available = bool(cfg['remote_key_env'] and os.environ.get(cfg['remote_key_env']))
-            presence['parser'] = available
-            if cfg['remote_key_env'] and not available:
-                missing.append('remote_key_env')
+            presence['parser'] = 'remote_key_env' not in missing
         if missing:
             issues.append({'kind': 'configuration', 'scope': 'parser', 'fields': missing,
                            'action': '选择远程 MinerU 预设或已有本地 Gradio 服务；环境变量须对当前 CLI 进程可见'})
     if mode == 'auto':
-        keys = ('llm_base_url', 'llm_model', 'llm_key_env')
-        available = bool(cfg['llm_key_env'] and os.environ.get(cfg['llm_key_env']))
-        presence['model'] = available
-        missing = [key for key in keys if not cfg[key] or (key == 'llm_key_env' and not available)]
+        missing = config.missing(cfg, 'llm')
+        presence['model'] = 'llm_key_env' not in missing
         if missing:
             issues.append({'kind': 'configuration', 'scope': 'llm', 'fields': missing,
                            'action': '配置自动模式模型服务，或使用无需额外模型凭证的 agent 模式'})

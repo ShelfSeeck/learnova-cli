@@ -140,9 +140,10 @@ def _label(value):
     return ' '.join(value.split()).casefold()
 
 
-def _visible_markdown(text):
+def _visible_content(text):
+    units = scan(text)['protected']
     chars = list(text)
-    for unit in scan(text)['protected']:
+    for unit in units:
         if unit['kind'] in ('fence', 'indented_code', 'math'):
             chars[unit['start']:unit['end']] = ' ' * (unit['end'] - unit['start'])
     visible = _mask_code_spans(''.join(chars))
@@ -175,7 +176,13 @@ def _visible_markdown(text):
                     position = end + 1
                     break
                 end += 1
-    return ''.join(chars)
+    html_visible = ''.join(chars)
+    for unit in units:
+        if unit['kind'] == 'html_table':
+            for i in range(unit['start'], unit['end']):
+                if chars[i] not in '\r\n':
+                    chars[i] = ' '
+    return ''.join(chars), html_visible
 
 
 def extract_images(text):
@@ -185,8 +192,7 @@ def extract_images(text):
     multiple results can refer to the same source range. Markdown escapes and HTML
     entities are decoded in Markdown destinations; HTML src only decodes entities.
     """
-    html_visible = _visible_markdown(text)
-    visible = _outside_html_tables(text, html_visible)
+    visible, html_visible = _visible_content(text)
     definitions = {}
     definition_pattern = re.compile(r'(?m)^ {0,3}\[([^]\n]+)\]:[ \t]*(?:<([^>\n]*)>|([^\s]+))')
     for match in definition_pattern.finditer(visible):
@@ -232,17 +238,6 @@ def extract_images(text):
                        'end': tag.start() + end, 'kind': 'html',
                        'usage_start': tag.start(), 'usage_end': tag.end()})
     return sorted(images, key=lambda item: (item['start'], item['end']))
-
-
-def _outside_html_tables(text, visible):
-    """Markdown-looking table text is literal HTML content; keep source offsets."""
-    chars = list(visible)
-    for unit in scan(text)['protected']:
-        if unit['kind'] == 'html_table':
-            for i in range(unit['start'], unit['end']):
-                if visible[i] not in '\r\n':
-                    chars[i] = ' '
-    return ''.join(chars)
 
 
 def metadata_requirements(chunks):
@@ -352,8 +347,7 @@ def _closing_label(text, opening):
 
 def _reference_links(text):
     """Read active Markdown links, sharing image parsing and code masking rules."""
-    html_visible = _visible_markdown(text)
-    visible = _outside_html_tables(text, html_visible)
+    visible, html_visible = _visible_content(text)
     definitions = {}
     for match in re.finditer(r'(?m)^ {0,3}\[', visible):
         opening = match.end() - 1
