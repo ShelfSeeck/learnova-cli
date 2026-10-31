@@ -17,6 +17,8 @@ DEFAULTS = {'parser': 'remote', 'remote_endpoint': '', 'remote_key_env': '', 'lo
             'local_result_timeout': 300}
 CHUNKING_KEYS = frozenset(('min_tokens', 'max_tokens', 'max_depth', 'llm_base_url', 'llm_model', 'llm_key_env'))
 PARSING_KEYS = frozenset(DEFAULTS) - CHUNKING_KEYS - {'read_limit'}
+PRESETS = {'mineru': {'parser': 'remote', 'remote_endpoint': 'https://mineru.net',
+                      'remote_key_env': 'MINERU_API_KEY', 'parser_ocr': True}}
 
 
 def validate(data):
@@ -80,9 +82,21 @@ def parse_value(key, value):
 
 def set_value(root, key, value, user=False):
     value = parse_value(key, value)
+    set_values(root, {key: value}, user)
+    return {'key': key, 'value': value}
+
+
+def preset_values(name):
+    if name not in PRESETS:
+        raise CliError('BUILD_CONFIG_INVALID', '未知构建预设', 2)
+    return dict(PRESETS[name])
+
+
+def set_values(root, values, user=False):
+    values = {key: parse_value(key, value) for key, value in values.items()}
     path = store.LEARNOVA_HOME / 'build-config.json' if user else Path(root) / '.learnova' / 'build-config.json'
     data = store._read_json(path)
-    data[key] = value
+    data.update(values)
     validate({**DEFAULTS, **data} if user else {**load(root), **data})
     store._write_json(path, data)
-    return {'key': key, 'value': value}
+    return {'values': values, 'scope': 'user' if user else 'project'}

@@ -116,6 +116,7 @@ python -m unittest tests.test_mirror_sync -v
 | `BUILD_PARSER_RESPONSE_INVALID` | 解析服务回复结构、ID、Markdown 或图片不符合契约 | 1 |
 | `BUILD_PARSER_ARCHIVE_INVALID` | ZIP 路径、成员类型、大小或歧义校验失败 | 1 |
 | `BUILD_PARSER_TIMEOUT` | 本地 SDK 请求/结果等待超时 | 1 |
+| `BUILD_PARSER_UPLOAD_FAILED` | 预签名对象存储上传被拒绝，与解析 API Token 认证阶段区分 | 1 |
 | `HTTP_TIMEOUT` | HTTP 连接/上传/响应超时 | 1 |
 
 解析内容异常必须在 parser 边界替换成固定安全消息，不透传共享 Markdown 抽取函数的输入标签。HTTP 响应头读取前的连接断开同样翻译为 `HTTP_ERROR`，且不附带底层异常信息。

@@ -17,6 +17,31 @@ def make_chunk(text, start, end, parent_id=None, depth=0):
             'parent_id': parent_id, 'depth': depth, 'tokens': (end - start + 3) // 4, 'warnings': []}
 
 
+def propose(structure, start, end, max_tokens, min_tokens=0, protected=()):
+    """Suggest bounded heading/paragraph cuts for semantic review, never inside protected text."""
+    units = list(structure['protected']) + list(protected)
+    allowed = [b for b in structure['boundaries'] if start < b['offset'] < end
+               and not any(u['start'] < b['offset'] < u['end'] for u in units)]
+    headings = {h['start']: h['level'] for h in structure['headings']}
+    cuts, cursor = [], start
+    while end - cursor > max_tokens * 4 and len(cuts) < 100:
+        candidates = [b for b in allowed if cursor + min_tokens * 4 < b['offset'] <= cursor + max_tokens * 4]
+        if candidates:
+            preferred = [b for b in candidates if b['offset'] in headings]
+            if preferred:
+                level = min(headings[b['offset']] for b in preferred)
+                choice = max((b for b in preferred if headings[b['offset']] == level), key=lambda b: b['offset'])
+            else:
+                choice = candidates[-1]
+        else:
+            choice = next((b for b in allowed if b['offset'] > cursor + max_tokens * 4), None)
+        if choice is None:
+            break
+        cuts.append(choice['id'])
+        cursor = choice['offset']
+    return {'splits': cuts, 'protected_ranges': [], 'atomic': False}
+
+
 def split(text, structure, cuts, start=0, end=None, protected=(), parent_id=None, depth=0):
     """Split scope at boundary IDs; supplied protected ranges add to scanner ranges."""
     end = len(text) if end is None else end

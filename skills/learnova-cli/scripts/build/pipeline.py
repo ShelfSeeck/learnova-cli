@@ -1,6 +1,7 @@
 """Shared host/automatic build state machine."""
 import base64
 import hashlib
+import json
 import os
 import re
 import stat
@@ -145,11 +146,63 @@ class BuildService:
     def _public(self, s):
         result = {k: s[k] for k in ('task_id', 'revision', 'document_revision', 'stage', 'status', 'mode', 'request', 'result_path')}
         result['warning_count'] = sum(bool(c.get('warnings')) for c in s['chunks'])
+        done = len(s['metadata'].get('chunks', {}))
+        result['summary'] = {'chunks': len(s['chunks']), 'metadata_done': done,
+                             'metadata_pending': len(s['chunks']) - done}
+        result['next_action'] = ('configure' if s.get('request') and s['request']['kind'] == 'configuration' else
+                                 'submit' if s['status'] == 'needs_input' else
+                                 'resume' if s['status'] in ('paused', 'failed') else
+                                 'use_skill' if s['status'] == 'completed' else 'work')
         if s.get('error'):
             result['error'] = s['error']
         if 'progress' in s:
             result['progress'] = s['progress']
         return result
+
+    def start(self, input_path, name=None, output=None, mode='agent', parser=None, force=False, preset=None):
+        from .preflight import inspect
+        if name is not None and (len(name) > 64 or not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name)):
+            invalid('无效 Skill 名称')
+        if output and not Path(output).is_absolute():
+            output = str(self.root / output)
+        target = Path(output) if output else self.root / '.agents' / 'skills' / name if name else None
+        if target is not None:
+            target = _safe_output(self.root, input_path, target, self.root / '.learnova')
+            if any(part.is_symlink() for part in (target, *target.parents)):
+                invalid('输出路径不能包含符号链接')
+            if target.exists() and not force:
+                raise ConflictError('SKILL_CONFLICT', f'目标已存在: {target}；使用 --force 覆盖')
+        if preset:
+            config.set_values(self.root, config.preset_values(preset))
+        report = inspect(self.root, input_path, mode, parser)
+        if not report['ready']:
+            return {'status': 'needs_input', 'preflight': report, 'next_action': 'configure'}
+        state = self.create(input_path, name, output, mode, parser, force)
+        task = state['task_id']
+        if mode == 'auto' and self.decision is None:
+            from .decisions import Decision
+            self.decision = Decision(lambda start, end, limit, kind: self.read(task, start, end, limit, kind))
+        return self.work(task)
+
+    def tasks(self, limit=20):
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise CliError('BAD_USAGE', 'limit 需为 1–100', 2)
+        base = self.root / '.learnova' / 'builds'
+        if not base.exists():
+            return {'tasks': [], 'total': 0}
+        if not base.is_dir() or base.is_symlink() or base.parent.is_symlink():
+            raise CliError('BUILD_INTEGRITY_FAILED', '任务目录不能包含符号链接')
+        paths = [p for p in base.iterdir() if re.fullmatch(r'[a-f0-9]{32}', p.name) and not p.is_symlink() and p.is_dir()]
+        rows = []
+        for path in sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)[:limit]:
+            try:
+                with jobs.locked(self.root, path.name):
+                    s = jobs.read(path)
+                    rows.append({**{k: s[k] for k in ('task_id', 'input', 'stage', 'status', 'result_path')},
+                                 'summary': self._public(s)['summary']})
+            except CliError as exc:
+                rows.append({'task_id': path.name, 'status': 'invalid', 'error': {'code': exc.code}})
+        return {'tasks': rows, 'total': len(paths)}
 
     def _reset(self, s, stage):
         s['document_revision'] += 1
@@ -188,17 +241,26 @@ class BuildService:
                         changed = True
             except (ValueError, KeyError, CliError):
                 changed = True
-        if s['text'] is not None and (digest(s['text'].encode('utf-8')) != s.get('text_sha256') or s.get('structure') != document.scan(s['text'])):
-            changed = True
+        structure_changed = False
+        if s['text'] is not None:
+            if digest(s['text'].encode('utf-8')) != s.get('text_sha256'):
+                changed = True
+            else:
+                structure = document.scan(s['text'])
+                if s.get('structure') != structure:
+                    s['structure'] = structure
+                    structure_changed = True
         if changed:
             s['input_sha256'] = digest(_input(Path(s['input'])))
             self._reset(s, 'parsing')
+        elif structure_changed:
+            self._reset(s, 'chunking')
         render_changed = s.get('render_version') != skill_build.RENDER_VERSION
         if render_changed:
             s['render_version'] = skill_build.RENDER_VERSION
             if s['text'] is not None and 'description' in s['metadata']:
                 self._reset(s, 'finalize')
-        return changed or rules_changed or render_changed
+        return changed or structure_changed or rules_changed or render_changed
 
     def _request(self, s, kind, scope, **extra):
         req = {'schema_version': 1, 'task_id': s['task_id'], 'request_id': uuid.uuid4().hex,
@@ -229,7 +291,7 @@ class BuildService:
         elif missing != req['questions']:
             self._request(s, 'configuration', scope, questions=missing)
 
-    def _advance(self, s, path):
+    def _advance(self, s, path, managed=False, batch_size=8):
         if s['status'] in ('paused', 'completed', 'failed'):
             return
         if s['request']:
@@ -284,21 +346,41 @@ class BuildService:
                     scope['warnings'].append('oversized:max_depth'); return
             if scope:
                 allowed = [b['id'] for b in structure['boundaries'] if scope['start'] < b['offset'] < scope['end'] and not any(u['start'] < b['offset'] < u['end'] for u in structure['protected'] + s['protected'])]
+                if managed and s['chunks'] and not allowed:
+                    scope['warnings'].append('oversized:no_cut')
+                    return
                 headings = [dict(h, title=h['title'][:512]) for h in structure['headings'] if scope['start'] <= h['start'] < scope['end']]
                 self._request(s, 'split_plan', scope, allowed_boundaries=allowed[:100], boundary_count=len(allowed),
                               headings=headings[:40], heading_count=len(headings),
+                              proposal=chunking.propose(structure, scope['start'], scope['end'], s['config']['max_tokens'], s['config']['min_tokens'], s['protected']),
                               samples=document.representative(text, scope['start'], scope['end'], min(500, s['config']['read_limit'])))
                 return
             s['chunks'] = chunking.merge_small(text, s['chunks'], s['config']['min_tokens'], s['config']['max_tokens'], structure=structure, protected=s['protected'])
             s['stage'] = 'indexing'
         if s['stage'] == 'indexing':
             details = s['metadata'].setdefault('chunks', {})
+            pending = [c for c in s['chunks'] if c['id'] not in details]
+            if managed and pending:
+                batch = pending[:min(batch_size, 4) if s['mode'] == 'auto' else batch_size]
+                contexts, context_size = [], 0
+                for c in batch:
+                    context = {**c, 'samples': document.representative(s['text'], c['start'], c['end'], min(500, s['config']['read_limit'])),
+                               'headings': [dict(h, title=h['title'][:160]) for h in s['structure']['headings'] if c['start'] <= h['start'] < c['end']][:8]}
+                    size = len(json.dumps(context, ensure_ascii=False))
+                    if contexts and context_size + size > 24000:
+                        break
+                    contexts.append(context)
+                    context_size += size
+                self._request(s, 'chunk_metadata_batch', {'ids': [c['id'] for c in contexts]},
+                              chunks=contexts, chunk_count=len(s['chunks']), remaining_count=len(pending))
+                return
             for chunk in s['chunks']:
                 if chunk['id'] not in details:
                     self._request(s, 'chunk_metadata', chunk, allowed_boundaries=[], samples=document.representative(s['text'], chunk['start'], chunk['end'], min(500, s['config']['read_limit']))); return
             if 'description' not in s['metadata']:
                 preview = {k: {'title': v['title'][:512], 'summary': v['summary'][:512], 'keywords': v['keywords'][:32]} for k, v in list(details.items())[:10]}
-                self._request(s, 'skill_metadata', 'document', allowed_boundaries=[], chunks=preview, chunk_count=len(details), name=s['name']); return
+                self._request(s, 'skill_metadata', 'document', allowed_boundaries=[], chunks=preview, chunk_count=len(details),
+                              outline=[{'id': key, 'title': value['title'][:120]} for key, value in list(details.items())[:100]], name=s['name']); return
             s['stage'] = 'finalize'
         if s['stage'] == 'finalize':
             if s.get('normalized_page_map') is not None:
@@ -334,7 +416,7 @@ class BuildService:
                 jobs.write(path, s)
             return self._public(s)
 
-    def next(self, task_id):
+    def next(self, task_id, *, managed=False, batch_size=8):
         with jobs.locked(self.root, task_id) as path:
             s = jobs.read(path)
             if s['status'] == 'completed':
@@ -343,7 +425,7 @@ class BuildService:
                 self._check_input(s)
                 if s['status'] not in ('paused', 'failed'):
                     self._refresh_configuration(s)
-                self._advance(s, path)
+                self._advance(s, path, managed, batch_size)
                 jobs.write(path, s)
                 return self._public(s)
             except Exception as exc:
@@ -394,6 +476,14 @@ class BuildService:
             raise CliError('BAD_USAGE', '无法读取 JSON 结果', 2) from exc
         return self.submit(task_id, envelope)
 
+    @staticmethod
+    def _validate_chunk_metadata(result):
+        if (not isinstance(result, dict) or set(result) != {'title', 'summary', 'keywords'}
+                or any(not isinstance(result[k], str) or not result[k].strip() or '\n' in result[k] or '\r' in result[k] or len(result[k]) > 512 for k in ('title', 'summary'))
+                or not isinstance(result['keywords'], list) or not result['keywords'] or len(result['keywords']) > 32
+                or any(not isinstance(k, str) or not k.strip() or len(k) > 128 or '\n' in k or '\r' in k for k in result['keywords'])):
+            raise CliError('BUILD_PLAN_INVALID', '无效分块元数据', 2)
+
     def submit(self, task_id, envelope):
         with jobs.locked(self.root, task_id) as path:
             s = jobs.read(path)
@@ -434,9 +524,15 @@ class BuildService:
                     index = next(i for i, c in enumerate(s['chunks']) if c['id'] == scope['id'])
                     s['chunks'][index:index + 1] = children
             elif kind == 'chunk_metadata':
-                if set(result) != {'title', 'summary', 'keywords'} or any(not isinstance(result[k], str) or not result[k].strip() or '\n' in result[k] or '\r' in result[k] for k in ('title', 'summary')) or not isinstance(result['keywords'], list) or not result['keywords'] or len(result['keywords']) > 32 or any(len(result[k]) > 512 for k in ('title', 'summary')) or any(not isinstance(k, str) or not k.strip() or len(k) > 128 or '\n' in k or '\r' in k for k in result['keywords']):
-                    raise CliError('BUILD_PLAN_INVALID', '无效分块元数据', 2)
+                self._validate_chunk_metadata(result)
                 s['metadata']['chunks'][req['scope']['id']] = result
+            elif kind == 'chunk_metadata_batch':
+                values = result.get('chunks')
+                if set(result) != {'chunks'} or not isinstance(values, dict) or set(values) != set(req['scope']['ids']):
+                    raise CliError('BUILD_PLAN_INVALID', '结果必须完整覆盖当前语义批次', 2)
+                for value in values.values():
+                    self._validate_chunk_metadata(value)
+                s['metadata']['chunks'].update(values)
             elif kind == 'skill_metadata':
                 if set(result) != {'name', 'description'} or not skill_build.valid_skill_metadata(result['name'], result['description']) or (s['name'] and s['name'] != result['name']):
                     raise CliError('BUILD_PLAN_INVALID', '无效 Skill 元数据', 2)
@@ -516,11 +612,16 @@ class BuildService:
             jobs.write(path, s)
             return self._public(s)
 
-    def run(self, task_id, mode=None, until=None, max_steps=100):
+    def work(self, task_id, batch_size=8, max_steps=1000):
+        if type(batch_size) is not int or not 1 <= batch_size <= 16 or type(max_steps) is not int or max_steps < 1:
+            raise CliError('BAD_USAGE', 'batch-size 需为 1–16，max-steps 必须为正整数', 2)
+        return self.run(task_id, max_steps=max_steps, managed=True, batch_size=batch_size)
+
+    def run(self, task_id, mode=None, until=None, max_steps=100, *, managed=False, batch_size=8):
         if mode:
             self.resume(task_id, mode=mode)
         for step in range(max_steps):
-            state = self.next(task_id)
+            state = self.next(task_id, managed=managed, batch_size=batch_size)
             if state['status'] in ('paused', 'completed', 'failed') or (until and state['stage'] == until):
                 return state
             if step + 1 < max_steps and state['status'] == 'running' and state['stage'] == 'parsing':
@@ -548,7 +649,7 @@ class BuildService:
                         failed['error'] = {'code': exc.code if isinstance(exc, CliError) else 'INTERNAL_ERROR', 'next': '检查配置或输入后执行 build resume 重试'}
                         jobs.write(path, failed)
                     raise
-        return state
+        return self.status(task_id)
 
     def package(self, task_id):
         with jobs.locked(self.root, task_id) as path:
