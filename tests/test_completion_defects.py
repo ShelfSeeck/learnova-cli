@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import tempfile
 import zipfile
+import tarfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -178,9 +179,10 @@ class CompletionDefectsTest(unittest.TestCase):
         text = ('---\nname: sample # valid comment\ndescription: "Quoted # description" # comment\n'
                 'metadata:\n  category: example\n---\nPublic reference.\n')
         (folder / 'SKILL.md').write_text(text)
-        for path in ('.docker/config.json', '.kube/config', '.azure/accessTokens.json'):
+        for path in ('.docker/config.json', '.kube/config', '.azure/accessTokens.json',
+                     'tokens.json', 'secrets.yaml', 'service_account.json', 'certificate.p12'):
             target = folder / path
-            target.parent.mkdir(parents=True)
+            target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text('synthetic-private-state')
         content, meta = publishing.package(folder)
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
@@ -205,13 +207,39 @@ class CompletionDefectsTest(unittest.TestCase):
             service.submit(task, {**req, 'result': answer})
         self.assertEqual(state['status'], 'completed')
         output = Path(state['result_path'])
-        for relative in ('.docker/config.json', '.kube/config', '.azure/accessTokens.json'):
+        for relative in ('.docker/config.json', '.kube/config', '.azure/accessTokens.json',
+                         'tokens.json', 'secrets.yaml', 'service_account.json', 'certificate.p12'):
             target = output / relative
-            target.parent.mkdir(parents=True)
+            target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text('synthetic-private-state')
         with zipfile.ZipFile(service.package(task)['package']) as archive:
             self.assertFalse(any(name.startswith('.') for name in archive.namelist()))
             self.assertNotIn(b'synthetic-private-state', b''.join(archive.read(name) for name in archive.namelist()))
+
+    def test_published_nested_yaml_round_trips_through_mirror_install(self):
+        for number, version_field in enumerate(('', 'version: "1.0.0" # published release\n')):
+            with self.subTest(top_level_version=bool(version_field)):
+                folder = self.root / ('published-' + str(number))
+                folder.mkdir()
+                original = ('---\nname: sample\ndescription: Public reference\n' + version_field
+                            + 'metadata:\n  version: "internal-tag"\n  name: nested-name\n---\nContent.\n')
+                (folder / 'SKILL.md').write_text(original)
+                archive, _ = publishing.package(folder)
+                data = io.BytesIO()
+                with zipfile.ZipFile(io.BytesIO(archive)) as zipped, tarfile.open(fileobj=data, mode='w:gz') as tar:
+                    for name in zipped.namelist():
+                        content = zipped.read(name)
+                        member = tarfile.TarInfo('repository/sample/' + name)
+                        member.size = len(content)
+                        tar.addfile(member, io.BytesIO(content))
+                source = MirrorSource(SimpleNamespace(config={'mirror_repo_url': 'https://example.invalid/mirror'}, offline=False))
+                with patch.object(store, 'load_index_cache', return_value=(catalog('sample'), False)), \
+                     patch('net.download', side_effect=lambda url, dest: dest.write_bytes(data.getvalue())):
+                    fetched = source.fetch('sample', '1.0.0', self.root / ('download-' + str(number)))
+                target = agents.AgentTarget(self.root / ('installed-' + str(number)), ('codex',))
+                result = engine.install(fetched, [target], 'sample', False)
+                self.assertEqual((result[0].name, result[0].version), ('sample', '1.0.0'))
+                self.assertEqual((target.path / 'sample/SKILL.md').read_text(), original)
 
 
 if __name__ == '__main__':

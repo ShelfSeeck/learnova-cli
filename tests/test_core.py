@@ -64,6 +64,18 @@ class FrontmatterTest(unittest.TestCase):
         self.assertEqual(meta, {})
         self.assertEqual(body, "# 只有正文")
 
+    def test_nested_metadata_never_overrides_top_level_fields(self):
+        text = ('---\nname: sample # public name\nversion: "1.0.0" # release\n'
+                'metadata:\n  name: nested-name\n  version: "internal-tag"\n---\nBody\n')
+        meta, body = parse_frontmatter(text)
+        self.assertEqual((meta['name'], meta['version']), ('sample', '1.0.0'))
+        self.assertEqual(body, 'Body\n')
+        without_version = text.replace('version: "1.0.0" # release\n', '')
+        self.assertNotIn('version', parse_frontmatter(without_version)[0])
+        indented = '---\n' + '\n'.join('  ' + line for line in text.splitlines()[1:-2]) + '\n---\nBody\n'
+        indented_meta, _ = parse_frontmatter(indented)
+        self.assertEqual((indented_meta['name'], indented_meta['version']), ('sample', '1.0.0'))
+
 
 class SkillDirTest(unittest.TestCase):
     def test_rejects_path_segments(self):

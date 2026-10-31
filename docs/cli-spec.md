@@ -129,6 +129,8 @@ login（用户亲自执行）
 
 发布和构建打包均排除隐藏文件/目录与已知凭证、管理文件，避免携带本机认证状态；若成品引用被排除文件，须先整理为可公开资源再打包。发布保留原始 SKILL.md，允许常见 YAML 字符串、行尾注释和嵌套 metadata；最终格式及资源类型仍受后端规则约束。
 
+安装元数据只读取顶层字段，嵌套 metadata 的同名键不得覆盖 name/version。发布与构建使用同一凭证排除规则，包括 tokens.json、secrets.yaml、service_account.json 和 .pem/.key/.p12/.pfx 等已知凭证文件。
+
 认证及发布请求由账号服务编排，net 提供可选响应头、显式 Content-Type 与空响应支持；需要防重放的写请求附随机 nonce 和时间戳。Authorization 与 Cookie 均不得跟随跨 origin 重定向。
 
 项目级 `list`、`uninstall` 和 `upgrade` 合并所选 agent 的项目目录与 `.agents/skills/`，按物理路径去重；无 agent 对应统一目录时标记为 `project`。用户级默认范围和 install 目标不变。清单新增 `source`：有效且目录名匹配的 `.learnova-install.json`（含原有 dir/version 格式）为 `community`，优先于构建记录；否则 schema 1 或 2、source 为 `local-build` 的 `.learnova-build.json` 表示 `local-build`，其余为 `unknown`。社区升级只处理物理目录中来源为 `community` 的副本，跳过其他来源；旧 frontmatter 包仍可查看和卸载，需显式 `install --force` 才能建立社区来源。

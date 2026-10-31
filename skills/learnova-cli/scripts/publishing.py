@@ -14,18 +14,13 @@ import auth
 from core.errors import CliError
 from core.frontmatter import parse_frontmatter
 from core import skill_build
-from core.package_paths import is_hidden_path
+from core.package_paths import is_private_path
 
 MAX_PACKAGE_BYTES = 40 * 1024 * 1024
 MAX_PACKAGE_FILES = 2000
 MAX_PACKAGE_DEPTH = 32
 MAX_PAGES = 100
 MAX_SUBMISSIONS = 10000
-EXCLUDED = frozenset({".learnova", ".git", ".hg", ".svn", ".ssh", ".aws", ".gnupg",
-                      ".codex", ".claude", ".agents", ".opencode", ".superpowers", "__pycache__",
-                      "auth.json", "credentials.json", "credentials", ".credentials", ".git-credentials",
-                      "secrets.json", "secrets.yaml", "secrets.yml", "tokens.json", "token.json",
-                      "service_account.json", ".envrc", ".netrc", ".npmrc", ".pypirc"})
 
 
 def _invalid():
@@ -96,10 +91,7 @@ def package(directory):
                 if (not (stat.S_ISDIR(entry.st_mode) or stat.S_ISREG(entry.st_mode))
                         or not skill_build._safe_path(relative) or len(relative.split("/")) > MAX_PACKAGE_DEPTH):
                     _package_invalid()
-                lower = name.lower()
-                if (is_hidden_path(relative) or lower in EXCLUDED or lower == ".env" or lower.startswith((".env.", ".learnova-"))
-                        or lower.endswith((".pem", ".key", ".p12", ".pfx"))
-                        or lower in {"id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"}):
+                if is_private_path(relative):
                     if name in directories:
                         directories.remove(name)
                     continue

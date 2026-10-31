@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlsplit
 import engine
 from core import chunking, document, skill_build, page_provenance
 from core.errors import CliError, ConflictError
-from core.package_paths import is_hidden_path
+from core.package_paths import is_private_path
 from . import config, jobs, transactions
 
 STAGES = ('parsing', 'chunking', 'indexing', 'finalize')
@@ -563,9 +563,6 @@ class BuildService:
                 if root.is_symlink() or any(parent.is_symlink() for parent in root.parents):
                     raise ValueError('unsafe output')
                 files = {}
-                excluded = {'.learnova', '.git', '.hg', '.svn', '.ssh', '.aws', '.gnupg',
-                            '.learnova-install.json', '.learnova-build.json', 'auth.json',
-                            'credentials.json', 'credentials', '.netrc', '.npmrc', '.pypirc'}
                 def unreadable(error):
                     raise error
                 for directory, directories, names in os.walk(root, followlinks=False, onerror=unreadable):
@@ -575,10 +572,7 @@ class BuildService:
                         mode = file.lstat().st_mode
                         if not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)) or not skill_build._safe_path(relative):
                             raise ValueError('unsafe file')
-                        lower = name.lower()
-                        omit = (is_hidden_path(relative) or lower in excluded or lower == '.env' or lower.startswith(('.env.', '.learnova-'))
-                                or lower.endswith(('.pem', '.key')) or lower in ('id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa'))
-                        if omit:
+                        if is_private_path(relative):
                             if name in directories:
                                 directories.remove(name)
                             continue
