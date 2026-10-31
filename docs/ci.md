@@ -24,6 +24,8 @@ T0 包括纯逻辑、账号、在线源、发布、遥测和构建回归。T1 �
 
 Windows/macOS 标签变量必须指向已配置的原生 runner，预装 uv、git，Windows 还需 `pwsh`。未配置标签时不创建相应作业，不表示该平台已通过。Linux 作业安装固定版本 uv；测试本身仍用 `unittest`，不安装测试框架。
 
+Linux 容器默认经 [NJU 容器缓存](https://doc.nju.edu.cn/books/efe93/page/6c988) 拉取官方 Python slim 镜像，按上游 manifest 摘要固定内容。若 runner 使用其他网络，可用 `LEARNOVA_CI_IMAGE` 覆盖为可访问的同等 Python 3.12 Debian 镜像；无需更改宿主机 Docker 配置。
+
 可在真实平台手动验收：
 
 ```bash
