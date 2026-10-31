@@ -2,7 +2,9 @@
 
 Learnova 技能社区的命令行入口，以 agent skill 形式分发。
 
-当前实现聚焦镜像分发：从 Learnova 的 Git 镜像检索、查看、安装、升级和卸载社区技能。账号、在线后端检索与发布链路当前尚未实现。
+支持从 Markdown 或 PDF 构建本地知识参考型 Skill；详见 [构建指南](skills/learnova-cli/references/building.md)。PDF 与自动模式需要用户配置服务；真实服务认证验收尚未完成。
+
+镜像分发支持：从 Learnova 的 Git 镜像检索、查看、安装、升级和卸载社区技能。账号、在线后端检索与发布链路当前尚未实现。
 
 ## 安装
 
@@ -59,4 +61,4 @@ python skills/learnova-cli/scripts/learnova.py config set mirror_repo_url <镜�
 
 ## 运行要求
 
-Python 3.10+，无第三方依赖。
+Python 3.10+；基础功能无需第三方依赖。PDF 拆页和本地 Gradio 解析按需安装可选依赖，见构建指南。

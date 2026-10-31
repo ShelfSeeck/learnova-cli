@@ -1,6 +1,7 @@
 """命令注册表。新命令 = 新模块 + 此处一行。"""
 
 from . import (
+    build,
     config,
     info,
     init,
@@ -17,6 +18,7 @@ from . import (
 )
 
 MODULES = [
+    build,
     init,
     search,
     info,

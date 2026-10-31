@@ -62,3 +62,19 @@ def resolve_targets(
 def targets_for_agents(targets: list[AgentTarget], names: set[str]) -> list[AgentTarget]:
     """保留包含指定逻辑 agent 的物理目标。"""
     return [target for target in targets if any(name in names for name in target.agents)]
+
+
+def management_targets(selected, project, cwd=None, home=None):
+    """Management includes the canonical project root and deduplicates physical paths."""
+    targets = resolve_targets(selected, project, cwd, home)
+    if project:
+        targets.append(AgentTarget((cwd or Path.cwd()) / ".agents/skills", ("project",)))
+    grouped = {}
+    for target in targets:
+        key = target.path.resolve(strict=False)
+        if key not in grouped:
+            grouped[key] = target
+        elif target.agents != ("project",):
+            prior = grouped[key]
+            grouped[key] = AgentTarget(prior.path, tuple(dict.fromkeys(prior.agents + target.agents)))
+    return list(grouped.values())
