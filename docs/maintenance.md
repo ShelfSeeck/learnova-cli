@@ -55,6 +55,8 @@ python -m unittest tests.test_mirror_sync -v
 
 | code | 含义 | 退出码 |
 |---|---|---|
+| `BUILD_PLAN_INVALID` | 构建切分方案或语义元数据非法 | 2 |
+| `BUILD_INTEGRITY_FAILED` | 构建产物或来源覆盖校验失败 | 1 |
 | `NOT_IMPLEMENTED` | 功能尚未实现 | 1 |
 | `SKILL_NOT_FOUND` | 索引中不存在指定技能 | 1 |
 | `VERSION_NOT_FOUND` | 索引中不存在指定版本 | 1 |
@@ -94,3 +96,32 @@ python -m unittest tests.test_mirror_sync -v
 - 提交前：`python -m unittest discover tests -v`（T0 + producer）；`python tests/t1_mirror_flow.py`（T1）。
 - commit message 用英文，前缀 `feat:` / `fix:` / `docs:` / `test:` / `chore:`。
 - `internal/` 为本地目录，已通过 `.git/info/exclude` 排除；克隆新环境后如需保留该约定，重新执行 `echo "/internal/" >> .git/info/exclude`。
+
+文档构建的结构扫描、切片和产物校验保持纯函数；项目任务文件由构建 jobs 管理，正式目录提交由 engine 负责。
+
+### 本地构建
+
+构建命令保持薄层；`build/config.py` 按需校验独立配置并复用 store 原子 JSON 操作，`build/jobs.py` 管理项目私有任务与锁，`build/pipeline.py` 协调阶段并注入解析和判断适配器。纯文档处理在 `core/`，最终目录通过 engine 事务提交。新增结果字段或错误码需同步 CLI 规范并覆盖恢复、旧请求与损坏断点测试；禁止将实际密钥写入快照或产物。
+
+任务快照每次写入重新计算解析、切片、语义及配置依赖摘要；读取缺失或损坏的状态必须报 `BUILD_INTEGRITY_FAILED`，不能跳过检查。配置重设按解析、切片、读取三类依赖分别失效；查询结构和语义列表按页返回，判断请求不得塞入完整大型文档结构。
+
+目录事务在输出父目录创建权限受限的锁和事务记录；重试先持锁验证暂存目录归属并恢复中断的替换。变更此协议时覆盖旧目录移走、新目录提交前的真实进程退出，且不得削弱多目标异常回滚和备份保留语义。
+
+### PDF 适配器维护
+
+| code | 含义 | 退出码 |
+|---|---|---|
+| `BUILD_DEPENDENCY_MISSING` | 缺少惰性 PDF/Gradio 依赖，按提示使用 uv 安装 | 1 |
+| `BUILD_PARSER_FAILED` | 服务返回失败或本地 SDK 调用失败，消息不含上游正文 | 1 |
+| `BUILD_PARSER_RESPONSE_INVALID` | 解析服务回复结构、ID、Markdown 或图片不符合契约 | 1 |
+| `BUILD_PARSER_ARCHIVE_INVALID` | ZIP 路径、成员类型、大小或歧义校验失败 | 1 |
+| `BUILD_PARSER_TIMEOUT` | 本地 SDK 请求/结果等待超时 | 1 |
+| `HTTP_TIMEOUT` | HTTP 连接/上传/响应超时 | 1 |
+
+解析内容异常必须在 parser 边界替换成固定安全消息，不透传共享 Markdown 抽取函数的输入标签。HTTP 响应头读取前的连接断开同样翻译为 `HTTP_ERROR`，且不附带底层异常信息。
+
+新增解析配置必须纳入 config 的集中依赖组，供 jobs seals 和 pipeline reconfigure 同时使用。远端 HTTP 测试仅用 localhost 临时服务，SDK/pypdf 用可替换依赖边界；覆盖认证不泄露、签名 URL 不落盘、上传/轮询/下载中断、完成分片复用、ZIP 安全、页偏移和安装包内完整构建。完整 unittest 与 T1 都须保持通过。自动模型适配和运行时 agent 指引已实现；真实服务认证验收待完成。
+
+自动判断错误 `BUILD_MODEL_REQUEST_FAILED` 和 `BUILD_MODEL_RESPONSE_INVALID` 使用固定脱敏信息；模型方案仍由 `BUILD_PLAN_INVALID` 校验。修改随包分发的判断规则会让活动任务从切片阶段重新判断并保留解析结果；旧请求失效。完成任务保持历史状态，只有显式 resume --from 才重新验证依赖。运行中仅解析轮询间隔变化不会使解析结果失效。
+
+轻量管理回归必须覆盖：编辑后来源/安装版本不变，扫描不递归读取；schema 2 最小记录和旧 schema 1 识别；完成后成品/输入删除与规则变化不影响历史；显式重建冲突/force 和私有断点复用；打包当前新增/编辑内容并排除管理、VCS 和凭证文件，同时拒绝损坏元数据、缺失参考/图片、不安全路径及链接。生成期精确覆盖、保护区间、私有 seals 和事务恢复测试必须保留。

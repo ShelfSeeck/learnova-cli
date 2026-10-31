@@ -143,3 +143,25 @@ mirror/
 - T1 端到端：本地 GitLab stub + 临时 `LEARNOVA_HOME`/`HOME`，子进程跑命令，不碰网络与真实 home。
 - `net.py` 等薄封装手工验证，不强行单测真实网络。
 - 测试用 unittest 裸跑，运行时与测试均保持零依赖纯 stdlib。
+
+文档构建以 `core/document.py`、`core/chunking.py`、`core/skill_build.py` 处理纯文本与数据，不执行 IO。项目任务 IO 归构建 jobs，配置与原子 JSON 归 store，正式目录事务归 engine；解析不属于 SkillSource。可选 PDF 拆页和本地 Gradio 依赖仅在使用时加载。
+
+正式目录事务由 `engine.commit_directories(candidate, outputs, force)` 共享：调用方先验证候选，输出是明确的最终目录列表，不要求社区版本。所有目标先暂存再替换，失败清理并回滚；拒绝不安全和符号链接目标。社区安装仍单独校验版本。本地构建来源记录仅为 schema_version 2、source local-build、version null；来源扫描兼容旧 schema 1 的基础标记，不递归读取或校验文件；社区 sidecar 有效且目录匹配时优先。项目管理额外扫描统一目录并按物理路径去重；升级仅选择社区来源的具体路径。
+
+目录提交失败后逐个尝试恢复全部目标。若部分恢复失败，保留受阻目标的备份并清理其余暂存目录；返回 `DIRECTORY_ROLLBACK_FAILED`（退出码 1），消息包含提交错误、各恢复错误及备份位置，异常链保留原提交错误。
+
+PDF 适配器位于 `build/parsers.py`，通过 `advance(source, config, state, checkpoint)` 返回 running/progress 或 completed/markdown/assets/page_map。私有状态按分片保存安全任务标识及已完成内容（图片为 base64）；每次跨请求边界先调用原子 checkpoint。远端走共享 net，本地 SDK 仅存在于有时限的隔离子进程中，日志不进入命令输出。配置的 `PARSING_KEYS/CHUNKING_KEYS` 是任务摘要和失效的唯一依赖清单。
+
+`net.request` 保持既有 JSON 签名，新增 `request_bytes` 支持原始 PUT 与有限二进制响应。请求和读取具有超时与长度上限，解析 ZIP 另查成员和总展开长度。错误不回显服务器正文、原始异常或 URL 查询/用户信息；认证请求继续禁止跨 origin 重定向，签名上传/下载从不附加 bearer。
+
+`core/page_provenance.py` 仅做数值映射验证和编辑偏移转换，无 IO。解析器先把每个分片的已验证页映射转换到合并 Markdown；pipeline 再按图片归一化记录转换，白名单数值范围仅保存在私有任务。旧注入解析器的 page_map 仍可私有保存，格式未知时只标 unavailable，不拷贝到公开来源记录。
+
+### 自动构建判断适配器
+
+自动模式通过 `build.decisions.Decision` 调用配置的 OpenAI 兼容 `/chat/completions` 接口，使用环境变量名引用密钥。模型只能返回判断结果或分页读取请求；读取经构建服务执行，受请求次数、上下文大小和输出大小限制。结果仍由统一的 `submit` 校验；非法响应、非法方案和网络失败保留待处理请求，返回固定错误信息。提示词规则版本纳入语义阶段有效性校验。`run` 在解析服务返回进行中时等待后再轮询，`next` 只即时轮询一次；`--until` 在进入指定阶段时停止。
+
+生成的知识 Skill 说明如何按主题选择参考文件，并将参考内容视为来源数据。生成索引不指示查询来源摘要或页码侧车；参考文件原文不因说明文字变化而改写。
+
+完成状态是历史记录。status/next/普通 resume 不检查原始输入、成品或新规则。显式 resume --from 是重建边界，重新判断私有依赖并要求明确的冲突覆盖授权；有效解析和判断可复用。活动任务仍用 seals 验证私有状态，渲染版本变化只让活动索引失效，判断规则变化只让活动切片失效。
+
+`core/skill_build.py` 分开两种纯校验：生成验证显式私有 chunks 的精确切片、连续覆盖和保护范围；当前目录验证名称/描述、路径和有效链接，不依赖历史摘要或来源记录。超大原因仅在生成时校验白名单，作为静态导航提示和私有任务信息保留。package 在 jobs 的锁内读取当前目录，排除管理记录、私有状态、VCS 和凭证，拒绝链接/特殊文件；不读取原输入，不修改完成状态。待提交摘要仅用于中断事务恢复，成功后清除。

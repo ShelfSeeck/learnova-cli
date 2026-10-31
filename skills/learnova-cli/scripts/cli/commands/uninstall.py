@@ -12,6 +12,6 @@ def register(sub) -> None:
 
 
 def handler(args, ctx) -> dict:
-    targets = agents.resolve_targets(ctx.selected_agents(), project=bool(args.project), cwd=ctx.cwd)
+    targets = agents.management_targets(ctx.selected_agents(), project=bool(args.project), cwd=ctx.cwd)
     removed = engine.uninstall(args.skill, targets)
     return {"name": args.skill, "removed": removed, "total": len(removed)}

@@ -18,27 +18,29 @@ def register(sub) -> None:
 def handler(args, ctx) -> dict:
     if not args.skill and not args.all:
         raise CliError("BAD_USAGE", "用法: upgrade <技能> 或 upgrade --all", exit_code=2)
-    targets = agents.resolve_targets(ctx.selected_agents(), project=bool(args.project), cwd=ctx.cwd)
+    targets = agents.management_targets(ctx.selected_agents(), project=bool(args.project), cwd=ctx.cwd)
     installed = engine.scan_installed(targets)
     if args.skill and not any(s.dir == args.skill for s in installed):
         raise CliError("SKILL_NOT_INSTALLED", f"{args.skill} 未安装于所选 agent 目录")
 
+    eligible = [s for s in installed if s.source == "community" and (not args.skill or s.dir == args.skill)]
+    skipped = [{"dir": s.dir, "path": s.path, "reason": f"来源为 {s.source}"}
+               for s in installed if s.source != "community" and (not args.skill or s.dir == args.skill)]
+    if not eligible:
+        return {"upgraded": [], "skipped": skipped, "source": ""}
     source = resolver.resolve(ctx)
     catalog = source.search("", [], "popular")
-    planned, skipped = core_index.plan_upgrades(
-        catalog,
-        [{"dir": s.dir, "version": s.version} for s in installed],
-        only=args.skill,
-    )
-
-    by_dir: dict[str, list[str]] = {}
-    for s in installed:
-        by_dir.setdefault(s.dir, []).append(s.agent)
-
     upgraded = []
-    for plan in planned:
-        agents_for = by_dir[plan["dir"]]
-        install_targets = agents.targets_for_agents(targets, set(agents_for))
-        engine.fetch_and_install(source, plan["dir"], plan["to"], install_targets, force=True)
-        upgraded.append({**plan, "agents": agents_for})
+    # A directory can be shared by logical agents; plan and install it only once.
+    by_path = {}
+    for item in eligible:
+        by_path.setdefault(item.path, []).append(item)
+    for path, items in by_path.items():
+        item = items[0]
+        planned, rejected = core_index.plan_upgrades(catalog, [{"dir": item.dir, "version": item.version}])
+        skipped.extend({**entry, "path": path} for entry in rejected)
+        if planned:
+            target = next(t for t in targets if str(t.path / item.dir) == path)
+            engine.fetch_and_install(source, item.dir, planned[0]["to"], [target], force=True)
+            upgraded.append({**planned[0], "agents": [s.agent for s in items]})
     return {"upgraded": upgraded, "skipped": skipped, "source": getattr(source, "name", "")}

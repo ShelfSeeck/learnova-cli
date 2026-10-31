@@ -12,7 +12,7 @@ def register(sub) -> None:
 
 def handler(args, ctx) -> dict:
     project = bool(args.project)
-    targets = agents.resolve_targets(ctx.selected_agents(), project=project, cwd=ctx.cwd)
+    targets = agents.management_targets(ctx.selected_agents(), project=project, cwd=ctx.cwd)
     installed = engine.scan_installed(targets)
     return {
         "installed": [vars(s) for s in installed],
