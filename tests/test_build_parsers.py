@@ -95,7 +95,10 @@ class Fixture:
                         return
                     request = json.loads(body['messages'][1]['content'])
                     kind = request['kind']
-                    result = {'splits': []} if kind == 'split_plan' else ({'title': 'Topic', 'summary': 'Reference', 'keywords': ['topic']} if kind == 'chunk_metadata' else {'name': 'sample', 'description': 'Reference'})
+                    if kind == 'chunk_metadata_batch':
+                        result = {'chunks': {key: {'title': 'Topic', 'summary': 'Reference', 'keywords': ['topic']} for key in request['scope']['ids']}}
+                    else:
+                        result = {'splits': []} if kind == 'split_plan' else ({'title': 'Topic', 'summary': 'Reference', 'keywords': ['topic']} if kind == 'chunk_metadata' else {'name': 'sample', 'description': 'Reference'})
                     self.send({'choices': [{'message': {'content': json.dumps({'result': result})}}]})
                     return
                 if fixture.fail_post is not None:
@@ -171,6 +174,29 @@ class ModelTests(unittest.TestCase):
 
     def response(self, content):
         return {'choices': [{'message': {'content': content}}]}
+
+    def test_managed_auto_start_finishes_without_host_submissions(self):
+        from build.pipeline import BuildService
+        import store
+        with tempfile.TemporaryDirectory() as tmp, patch.object(store, 'LEARNOVA_HOME', Path(tmp) / 'home'):
+            root = Path(tmp)
+            source = root / 'source.md'
+            source.write_text('# Topic\n\nSynthetic reference content.\n')
+            config.set_values(root, {key: self.cfg[key] for key in ('llm_base_url', 'llm_model', 'llm_key_env')})
+            state = BuildService(root).start(source, mode='auto')
+            self.assertEqual(state['status'], 'completed')
+            requests = [json.loads(json.loads(call[3])['messages'][1]['content']) for call in self.fixture.calls]
+            self.assertEqual([req['kind'] for req in requests], ['split_plan', 'chunk_metadata_batch', 'skill_metadata'])
+            reference = next((Path(state['result_path']) / 'references').glob('*.md'))
+            self.assertEqual(reference.read_text(), source.read_text())
+            from build.decisions import Decision
+            service = BuildService(root)
+            task = service.create(source, mode='auto')['task_id']
+            service.decision = Decision(lambda start, end, limit, kind: service.read(task, start, end, limit, kind))
+            limited = service.run(task, max_steps=1)
+            self.assertEqual(limited['status'], 'pending')
+            self.assertIsNone(limited['request'])
+            self.assertEqual(limited['next_action'], 'work')
 
     def test_http_paging_auth_and_late_boundary(self):
         self.fixture.model_responses = [self.response(json.dumps({'read': {'kind': 'boundaries', 'start': 100, 'limit': 100}})), self.response(json.dumps({'result': {'splits': ['b999']}}))]

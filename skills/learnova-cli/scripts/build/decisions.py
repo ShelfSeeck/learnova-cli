@@ -35,7 +35,7 @@ class Decision:
             try:
                 response = net.request('POST', config_snapshot['llm_base_url'].rstrip('/') + '/chat/completions',
                                        {'model': config_snapshot['llm_model'], 'messages': messages,
-                                        'temperature': 0, 'max_tokens': 2048}, token=key,
+                                        'temperature': 0, 'max_tokens': 8192 if request['kind'] == 'chunk_metadata_batch' else 2048}, token=key,
                                        timeout=30, max_bytes=MAX_RESPONSE)
             except CliError:
                 raise CliError('BUILD_MODEL_REQUEST_FAILED', '模型请求失败；请检查配置后重试') from None
@@ -57,7 +57,8 @@ class Decision:
                 start = read.get('start', 0)
                 limit = read.get('limit', 100)
                 end = read.get('end')
-                if kind not in ('text', 'boundaries', 'headings', 'chunks') or type(start) is not int or start < 0 or type(limit) is not int or not 1 <= limit <= 100 or (end is not None and (type(end) is not int or end < start)):
+                limit_max = config_snapshot['read_limit'] if kind == 'text' else 100
+                if kind not in ('text', 'boundaries', 'headings', 'chunks') or type(start) is not int or start < 0 or type(limit) is not int or not 1 <= limit <= limit_max or (end is not None and (type(end) is not int or end < start)):
                     raise ValueError()
                 page = self.reader(start, end, limit, kind)
                 rendered = json.dumps(page, ensure_ascii=False)

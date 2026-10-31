@@ -219,6 +219,77 @@ class HostBuildTest(unittest.TestCase):
         self.assertTrue((Path(done['result_path']) / 'SKILL.md').exists())
 
 
+class ManagedWorkflowTests(unittest.TestCase):
+    setUp = HostBuildTest.setUp
+    tearDown = HostBuildTest.tearDown
+    cli = HostBuildTest.cli
+
+    def test_managed_start_batches_semantics_and_continues(self):
+        self.cli('config', 'set', '--set', 'min_tokens=1', '--set', 'max_tokens=6')
+        state = self.cli('start', str(self.source), '--name', 'demo')
+        task = state['task_id']
+        req = state['request']
+        listed = self.cli('tasks')
+        self.assertEqual(listed['tasks'][0]['task_id'], task)
+        self.assertNotIn('text', listed['tasks'][0])
+        self.assertEqual(req['kind'], 'split_plan')
+        self.assertTrue(req['proposal']['splits'])
+        state = self.cli('submit', task, '--data', json.dumps({**req, 'result': req['proposal']}), '--continue', '--batch-size', '2')
+        req = state['request']
+        self.assertEqual(req['kind'], 'chunk_metadata_batch')
+        ids = req['scope']['ids']
+        self.assertEqual(len(ids), 2)
+        self.assertTrue(all(c['samples'] and c['headings'] for c in req['chunks']))
+        values = {key: {'title': 'Topic', 'summary': 'Contents', 'keywords': ['topic']} for key in ids}
+        incomplete = {ids[0]: values[ids[0]]}
+        failed = self.cli('submit', task, '--data', json.dumps({**req, 'result': {'chunks': incomplete}}), '--continue', error=True)
+        self.assertEqual(failed['error']['code'], 'BUILD_PLAN_INVALID')
+        self.assertEqual(self.cli('status', task)['summary']['metadata_done'], 0)
+        self.assertEqual(self.cli('status', task)['request'], req)
+        state = self.cli('submit', task, '--data', json.dumps({**req, 'result': {'chunks': values}}), '--continue')
+        self.assertEqual(state['request']['kind'], 'skill_metadata')
+        self.assertEqual(state['summary']['metadata_pending'], 0)
+        req = state['request']
+        state = self.cli('submit', task, '--data', json.dumps({**req, 'result': {'name': 'demo', 'description': 'Reference'}}), '--continue')
+        self.assertEqual(state['status'], 'completed')
+        output = Path(state['result_path'])
+        chunks = self.cli('read', task, '--kind', 'chunks')['items']
+        self.assertEqual(''.join((output / 'references' / (c['id'] + '.md')).read_text() for c in chunks), self.source.read_text())
+
+    def test_managed_preflight_and_atomic_preset(self):
+        report = self.cli('doctor', str(self.source), '--mode', 'auto')
+        self.assertFalse(report['ready'])
+        state = self.cli('start', str(self.source), '--mode', 'auto')
+        self.assertEqual(state['status'], 'needs_input')
+        self.assertNotIn('task_id', state)
+        self.assertFalse((self.root / '.learnova/builds').exists())
+        preset = self.cli('config', 'preset', 'mineru')
+        self.assertEqual(preset['values']['remote_key_env'], 'MINERU_API_KEY')
+        path = self.root / '.learnova/build-config.json'
+        before = path.read_bytes()
+        self.cli('config', 'set', '--set', 'min_tokens=3000', '--set', 'max_tokens=10', error=True)
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_managed_html_table_preserves_literal_source(self):
+        self.source.write_text('<table><tr><td>[Axis](symbol)' + ' value' * 2000 + '</td></tr></table>\n')
+        self.cli('config', 'set', '--set', 'min_tokens=1', '--set', 'max_tokens=10')
+        state = self.cli('start', str(self.source))
+        task = state['task_id']
+        req = state['request']
+        state = self.cli('submit', task, '--data', json.dumps({**req, 'result': req['proposal']}), '--continue')
+        self.assertEqual(state['request']['kind'], 'chunk_metadata_batch')
+        self.assertEqual(state['warning_count'], 1)
+        req = state['request']
+        values = {key: {'title': 'Data table', 'summary': 'Synthetic values', 'keywords': ['data']} for key in req['scope']['ids']}
+        state = self.cli('submit', task, '--data', json.dumps({**req, 'result': {'chunks': values}}), '--continue')
+        req = state['request']
+        state = self.cli('submit', task, '--data', json.dumps({**req, 'result': {'name': 'data-table', 'description': 'Reference'}}), '--continue')
+        self.assertEqual(state['status'], 'completed')
+        files = list((Path(state['result_path']) / 'references').glob('*.md'))
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0].read_text(), self.source.read_text())
+
+
 if __name__ == '__main__':
     unittest.main()
 
