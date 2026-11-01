@@ -1,0 +1,13 @@
+[Unit]
+Description=Learnova Skill Mirror Sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@RUN_USER@
+WorkingDirectory=@PROJECT_DIR@
+EnvironmentFile=@ENV_FILE@
+ExecStart=@PYTHON@ @PROJECT_DIR@/mirror/sync.py
+UMask=0077
+Nice=10

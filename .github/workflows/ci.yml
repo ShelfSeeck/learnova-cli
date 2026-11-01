@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: T0+T1 (${{ matrix.os }} / py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install Python
+        run: uv python install "${{ matrix.python-version }}"
+
+      # Shared acceptance runs stdlib unittest, local mirror fixtures and thin entries.
+      - name: T0, T1 and native entry points
+        if: runner.os != 'Windows'
+        run: uv run --no-project --python "${{ matrix.python-version }}" python tests/run_ci.py
+
+      - name: T0, T1 and PowerShell entry point
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: uv run --no-project --python "${{ matrix.python-version }}" python tests/run_ci.py --expected-platform Windows --require-powershell
+
+  # Optional real-service acceptance; synthetic backend tests already run in T0.
+  backend-integration:
+    name: T2 backend integration
+    needs: test
+    if: vars.LEARNOVA_RUN_BACKEND_TESTS == '1' && vars.LEARNOVA_TEST_BACKEND_URL != ''
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv python install 3.12
+
+      - name: T2 suite
+        env:
+          LEARNOVA_RUN_BACKEND_TESTS: '1'
+          LEARNOVA_TEST_BACKEND_URL: ${{ vars.LEARNOVA_TEST_BACKEND_URL }}
+          LEARNOVA_TEST_EMAIL: ${{ secrets.LEARNOVA_TEST_EMAIL }}
+          LEARNOVA_TEST_USERNAME: ${{ secrets.LEARNOVA_TEST_USERNAME }}
+          LEARNOVA_TEST_PASSWORD: ${{ secrets.LEARNOVA_TEST_PASSWORD }}
+          LEARNOVA_TEST_MIRROR_URL: ${{ vars.LEARNOVA_TEST_MIRROR_URL }}
+          LEARNOVA_TEST_ALLOW_WRITES: ${{ vars.LEARNOVA_TEST_ALLOW_WRITES }}
+        run: uv run --no-project --python 3.12 python tests/t2_backend_flow.py

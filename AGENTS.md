@@ -2,43 +2,57 @@
 
 Learnova 技能社区的分发工具（learnova-cli），以 agent skill 形式经 `npx skills` 分发，功能由纯 Python 脚本实现。
 
+正式主仓与分发入口为 `https://git.nju.edu.cn/learnova/learnova-cli`，当前 `main` 跟踪 `njugit/main`。`origin` 是保留的 GitHub remote；同步 GitHub 不是主仓开发或发行的前置条件。
+
 ## 先读文档
 
 改动任何代码前，按序阅读：
 
+0. `internal/plan.md`（**如存在**）— 决策背景、分阶段实施计划、开放问题；本地文件，已排除出版本库，克隆环境不存在属正常
 1. `docs/cli-spec.md` — 行为规范：命令面、配置、agent 适配、遥测、发布链路
 2. `docs/architecture.md` — 实现架构：命令层、输出契约、数据源抽象、安装引擎、错误模型
 3. `docs/mirror-spec.md` — 镜像仓规范：目录布局、index.json schema、同步约定
 4. `docs/maintenance.md` — 维护手册：加新功能的步骤与规则
 
-执行必须与设计文档一致；发现不一致先停下向维护者确认，不擅自偏离。
+docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接下来做什么」。执行必须与设计文档一致；发现不一致先停下向维护者确认，不擅自偏离。
 
 ## 开发进度
 
-- [x] 设计文档（cli-spec / mirror-spec / architecture）+ 按架构的 scripts 骨架
-- [ ] M1 镜像链路：镜像仓初始化 + 同步脚本 + index.json 生成（主项目侧）
-- [ ] M2 CLI 核心：MirrorSource、engine.install/uninstall、install/uninstall/upgrade 命令
-- [ ] M3 账号与发布：login/publish/status、遥测、BackendSource、resolver 降级链、init
-- [ ] M4 发布：GitHub 建仓、`npx skills add` 验证、PowerShell 实测
+功能补全已在 `codex/complete-cli` 实现并验收，目前待合入 `main`。下列完成项包含该功能分支，不能据此认定主分支已发行或配套服务已上线。
+
+- [x] 设计文档与 scripts 架构
+- [x] M1 镜像链路：producer 已实现并通过本地/生产快照验证；维护者确认同步服务已部署，正式镜像可匿名读取
+- [x] M2 CLI 核心：MirrorSource、安装引擎及 install/uninstall/upgrade 等命令
+- [x] M3 CLI：login/logout/whoami、publish/status、BackendSource、resolver 降级链、init 与可选安装事件发送已实现并复核
+- [x] M4 分发验收：候选包与正式入口的三种 agent 安装通过；Linux Python 3.10–3.13、POSIX 和 Linux PowerShell 入口通过
+- PDF 解析统一使用 V4 HTTP；自部署需兼容同一协议，Gradio 已移除。
+- [x] 本地构建：Markdown/PDF、宿主及自动判断、断点恢复和显式打包；官方云端解析及配置模型的自动构建已通过真实服务验收
+- [x] 已复现缺陷：缓存串源、跨 agent 升级回滚、构建返回过期请求，以及打包私有文件过滤和嵌套元数据解析均已修复并覆盖回归
+- [ ] 集成与上线：功能分支待合并；配套事件端点待合并、部署及显式启用，客户端端点默认留空
+
+原生 Windows/macOS 和 V4 兼容自部署服务尚未真实部署验收，按验收边界记录。通用环境核查表不是开发待办；已有镜像服务不重复部署。验证记录随功能分支的 `docs/ci.md` 维护。
 
 ## 硬规则
 
-- 运行时零第三方依赖（纯 stdlib，Python 3.10+）；pytest 仅 dev 依赖。
+- 运行时以 stdlib 为基线（Python 3.10+）；PDF 拆页可按需惰性加载 pypdf，测试用 unittest 裸跑。
 - handler 只返回 dict，不自行 print；错误抛 `CliError` 子类，不散落 try/except。
 - 输出契约（JSON 字段名、error code、退出码）发布后只增不改不删。
-- 本地状态只在 `~/.learnova/`（JSON 文件），不引入数据库。
+- 用户级状态在 `~/.learnova/`；构建配置及任务可位于项目 `.learnova/`，不引入数据库。
 - 遥测默认不收集，仅登录后上报 install 事件，fire-and-forget。
-- 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端/镜像地址默认值发行时注入，源码留空。
-- 提交前跑 `uv run --with pytest python -m pytest tests/ -q`。
+- 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端地址默认值发行时注入，源码留空。镜像地址保留源码中的公开正式默认值，允许用户配置覆盖。
+- 提交前跑 `python -m unittest discover tests -v`；镜像链路测试另跑 `python tests/t1_mirror_flow.py`。
 
 ## 目录速查
 
 | 路径 | 职责 |
 |---|---|
-| `scripts/learnova.py` | Router：参数解析、注册表分发、单点异常捕获 |
-| `scripts/cli/commands/` | 每命令一文件 |
-| `scripts/core/` | 纯逻辑零 IO（单测重点） |
-| `scripts/sources/` | 数据源协议与实现、回退链 |
-| `scripts/engine.py` | 安装引擎（文件操作唯一入口） |
-| `scripts/store.py` | 本地 JSON 读写 |
-| `spec/` | 本地实施记录，已排除出版本库，不存在属正常 |
+| `skills/learnova-cli/SKILL.md` | 实际分发给 agent 的 Skill 说明 |
+| `skills/learnova-cli/scripts/learnova.py` | Router：参数解析、注册表分发、单点异常捕获 |
+| `skills/learnova-cli/scripts/cli/commands/` | 每命令一文件 |
+| `skills/learnova-cli/scripts/core/` | 纯逻辑零 IO（单测重点） |
+| `skills/learnova-cli/scripts/sources/` | 数据源协议与实现、回退链 |
+| `skills/learnova-cli/scripts/engine.py` | 安装引擎（文件操作唯一入口） |
+| `skills/learnova-cli/scripts/store.py` | 本地 JSON 读写 |
+| `mirror/` | 运维侧 one-shot 镜像 producer；读取 Learnova 权威数据并生成 Git mirror，不进入 npx skills 分发包 |
+| `tests/test_mirror_sync.py` | producer 端到端测试：临时 SQLite + archive + 真实 Git repo |
+| `internal/` | 本地实施记录，已排除出版本库，不存在属正常 |

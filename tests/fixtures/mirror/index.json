@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "generated_at": 1727193600.0,
+  "skills": [
+    {
+      "dir": "demo-search",
+      "community_id": "11111111-1111-4111-8111-111111111111",
+      "name": "demo-search",
+      "display_name": "演示搜索技能",
+      "description": "用于搜索与安装链路的示例技能",
+      "tags": ["demo", "search"],
+      "likes": 3,
+      "downloads": 10,
+      "latest_version": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "changelog": "首个版本",
+          "commit": "a1b2c3d4",
+          "size_bytes": 512,
+          "created_at": 1727190000.0
+        }
+      ]
+    },
+    {
+      "dir": "demo-notes",
+      "community_id": "22222222-2222-4222-8222-222222222222",
+      "name": "demo-notes",
+      "display_name": "演示笔记技能",
+      "description": "用于安装与升级链路的示例技能",
+      "tags": ["demo", "notes"],
+      "likes": 7,
+      "downloads": 21,
+      "latest_version": "1.1.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "changelog": "首个版本",
+          "commit": "0a1b2c3d",
+          "size_bytes": 400,
+          "created_at": 1727190000.0
+        },
+        {
+          "version": "1.1.0",
+          "changelog": "新增参考文档",
+          "commit": "4e5f6a7b",
+          "size_bytes": 600,
+          "created_at": 1727193600.0
+        }
+      ]
+    }
+  ]
+}

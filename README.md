@@ -2,50 +2,70 @@
 
 Learnova 技能社区的命令行入口，以 agent skill 形式分发。
 
+支持从 Markdown 或 PDF 构建本地知识参考型 Skill；详见 [构建指南](skills/learnova-cli/references/building.md)。PDF 与自动模式需要用户配置解析服务和模型。
+
+可检索、查看、安装、升级和卸载社区技能。未登录时使用 Git 镜像；配置后端并登录后优先在线检索，后端不可用时按错误类型回退镜像。也支持初始化、账号登录、提交发布和查询审核状态。
+
 ## 安装
 
-```bash
-npx skills add <owner>/learnova-cli@learnova-cli
-```
-
-安装后由 agent 按 SKILL.md 指引调用，也可以直接手动使用：
+正式维护与分发仓库为 [learnova-cli](https://git.nju.edu.cn/learnova/learnova-cli)。Skill 放在 `skills/learnova-cli/`，推荐安装到用户级：
 
 ```bash
-python scripts/learnova.py --help
+npx skills add https://git.nju.edu.cn/learnova/learnova-cli.git \
+  --skill learnova-cli \
+  --global
 ```
 
-## 命令
+如只希望当前项目使用，去掉 `--global`。
 
-| 命令 | 说明 |
+安装后 agent 会按 Skill 内的 `SKILL.md` 指引调用脚本。开发仓中也可直接运行：
+
+```bash
+python skills/learnova-cli/scripts/learnova.py --help
+```
+
+## 快速上手
+
+```bash
+python skills/learnova-cli/scripts/learnova.py search 代码审查
+python skills/learnova-cli/scripts/learnova.py install <技能名>
+```
+
+CLI 默认使用正式镜像 `https://git.nju.edu.cn/learnova/skills-mirror`，无需首次配置。需要切换到其他镜像时仍可执行：
+
+```bash
+python skills/learnova-cli/scripts/learnova.py config set mirror_repo_url <镜像仓地址>
+```
+
+完整命令表、参数与默认行为见 [docs/cli-spec.md](docs/cli-spec.md)。
+
+需要账号或发布时，先配置部署提供的 API 根地址，再由本人在终端登录：
+
+```bash
+python skills/learnova-cli/scripts/learnova.py config set backend_url https://api.example.invalid
+python skills/learnova-cli/scripts/learnova.py login
+python skills/learnova-cli/scripts/learnova.py whoami
+python skills/learnova-cli/scripts/learnova.py publish ./sample-skill --version 1.0.0 --changelog "Initial release"
+python skills/learnova-cli/scripts/learnova.py status
+```
+
+`login` 不接受密码参数或密码环境变量，Agent 不代输凭证。发布成功表示已提交审核；审核上架并同步镜像后才可通过镜像安装。发布排除隐藏文件、私有状态和凭证文件；服务端仍可能限制 `scripts/` 等资源目录，不应绕过。详见 [账号与发布](skills/learnova-cli/references/accounts.md)。
+
+## 隐私
+
+未登录零上报。后端部署并启用专用事件端点后，仅登录且显式配置同源 `telemetry_endpoint` 时，成功安装才可能发送技能目录名、版本和时间戳；未配置端点不发送。可用 `config set telemetry off` 或环境变量 `LEARNOVA_TELEMETRY=0` 关闭。发送失败或缺少有效访问凭证会丢弃事件，不影响安装，也不在后台刷新登录态。详见 [docs/cli-spec.md](docs/cli-spec.md) §6。
+
+## 文档
+
+| 文档 | 内容 |
 |---|---|
-| `init` | 首次初始化：确认后端/镜像地址、遥测开关，检测已安装的 agent |
-| `search <关键词>` | 搜索社区技能（`--tag`、`--sort`、`--offline`） |
-| `info <技能名>` | 技能详情、版本列表、README |
-| `install <技能名>[@版本]` | 安装到 agent 的 skills 目录（默认用户级、全部检测到的 agent） |
-| `list` / `uninstall` / `upgrade` | 已安装技能管理 |
-| `login` / `logout` / `whoami` | Learnova 账号 |
-| `publish <目录>` | 发布技能到社区（进入审核流） |
-| `status` | 查询已提交版本的审核状态 |
-| `config set <键> <值>` | 修改配置 |
-
-## 配置与数据
-
-存放在 `~/.learnova/`：
-
-- `config.json`：后端地址、镜像地址、遥测开关、目标 agent、安装层级、索引缓存 TTL
-- `auth.json`：登录凭证（权限 600）
-- `index_cache.json`：社区索引离线缓存
-
-## 遥测与隐私
-
-仅在登录状态下，安装技能时上报一次安装事件用于社区活跃度统计。不产生其他上报，未登录时完全静默。关闭方式：
-
-```bash
-python scripts/learnova.py config set telemetry off
-# 或
-export LEARNOVA_TELEMETRY=0
-```
+| [docs/cli-spec.md](docs/cli-spec.md) | 命令参考、配置项、本地存储、agent 适配、检索与遥测 |
+| [docs/mirror-spec.md](docs/mirror-spec.md) | git 镜像仓规范（目录布局、index.json schema、同步约定） |
+| [docs/operations.md](docs/operations.md) | 运行与维护手册（镜像仓配置、同步凭证、服务器准备、镜像链路验收） |
+| [docs/architecture.md](docs/architecture.md) | 实现架构（贡献者向） |
+| [docs/maintenance.md](docs/maintenance.md) | 维护手册：如何加新功能 |
+| [docs/ci.md](docs/ci.md) | 本地验收、可选真实服务检查与平台运行条件 |
 
 ## 运行要求
 
-Python 3.10+，无第三方依赖。
+Python 3.10+；基础功能无需第三方依赖。PDF 拆页和本地 Gradio 解析按需安装可选依赖，见构建指南。
