@@ -40,7 +40,15 @@ def archive(entries):
     out = io.BytesIO()
     with zipfile.ZipFile(out, 'w', compression=zipfile.ZIP_DEFLATED) as z:
         for name, value in entries:
-            z.writestr(name, value)
+            # ZipInfo normalizes backslashes on Windows during construction.
+            # Preserve the intentionally malicious raw member name in the ZIP
+            # so the archive parser is tested against the same bytes on all OSes.
+            if isinstance(name, str) and '\\' in name:
+                info = zipfile.ZipInfo(name)
+                info.filename = name
+                z.writestr(info, value)
+            else:
+                z.writestr(name, value)
     return out.getvalue()
 
 
@@ -647,7 +655,7 @@ class InstalledTests(unittest.TestCase):
             self.fail('expected output conflict')
         self.command('resume', task, '--force')
         self.assertEqual(self.command('next', task)['status'], 'completed')
-        self.assertEqual(Path(result['result_path']), self.project / '.agents/skills/sample')
+        self.assertEqual(Path(result['result_path']).resolve(), (self.project / '.agents/skills/sample').resolve())
 
     def test_installed_final_warning_validation_and_recovery(self):
         source = self.project / 'source.md'
