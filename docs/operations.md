@@ -445,7 +445,7 @@ python skills/learnova-cli/scripts/learnova.py list
 
 CLI 已实现账号、在线检索、发布与审核查询。维护时核查对应配置与服务契约：
 
-- `backend_url` 由部署配置；认证凭证绑定来源，修改地址后由本人重新登录。
+- `backend_url` 默认连接 `https://ta.njunova.com`，可由部署或用户覆盖；认证凭证绑定来源，修改地址后由本人重新登录。
 - 登录、refresh Cookie 轮换与写请求防重放由账号服务处理；排查时不输出凭证或原始响应。
 - 发布与审核查询复用现有接口；核对提交状态、本人可见范围与审核备注，区分待审和上架。
 - Backend 与 Mirror 仅对可恢复网络、服务及认证错误回退；响应结构、技能包或明确不存在错误须保留。
