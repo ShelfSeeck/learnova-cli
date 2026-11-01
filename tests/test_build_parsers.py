@@ -660,7 +660,7 @@ class InstalledTests(unittest.TestCase):
     def test_installed_final_warning_validation_and_recovery(self):
         source = self.project / 'source.md'
         text = '```\n' + 'x' * 400 + '\n```\n'
-        source.write_text(text)
+        source.write_text(text, newline='\n')
         self.setup_config(min_tokens=0, max_tokens=5)
         task = self.command('create', str(source))['task_id']
         result = self.finish(task)
