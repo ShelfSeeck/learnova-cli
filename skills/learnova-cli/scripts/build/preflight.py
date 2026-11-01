@@ -15,8 +15,6 @@ def inspect(root, input_path, mode='agent', parser=None):
     presence = {}
     if source.suffix.lower() == '.pdf':
         dependencies['pypdf'] = importlib.util.find_spec('pypdf') is not None
-        if cfg['parser'] == 'local':
-            dependencies['gradio_client'] = importlib.util.find_spec('gradio_client') is not None
         missing = [name for name, available in dependencies.items() if not available]
         if missing:
             issues.append({'kind': 'dependency', 'packages': missing,
@@ -31,11 +29,10 @@ def inspect(root, input_path, mode='agent', parser=None):
             except Exception:
                 raise CliError('BUILD_INPUT_INVALID', '无法读取 PDF 页信息，请检查文件是否完整或加密') from None
         missing = config.missing(cfg, cfg['parser'])
-        if cfg['parser'] == 'remote':
-            presence['parser'] = 'remote_key_env' not in missing
+        presence['parser'] = 'remote_key_env' not in missing
         if missing:
             issues.append({'kind': 'configuration', 'scope': 'parser', 'fields': missing,
-                           'action': '选择远程 MinerU 预设或已有本地 Gradio 服务；环境变量须对当前 CLI 进程可见'})
+                           'action': '配置 MinerU V4 HTTP 地址或使用官方预设；已引用的密钥环境变量须对当前 CLI 进程可见'})
     if mode == 'auto':
         missing = config.missing(cfg, 'llm')
         presence['model'] = 'llm_key_env' not in missing

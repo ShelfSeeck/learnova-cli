@@ -151,11 +151,11 @@ login（用户亲自执行）
 
 `build config set --set KEY=VALUE [--set KEY=VALUE ...]` 支持一次原子保存多项非敏感配置；保留原单键形式。模型 API 为可选项，显式 `--mode auto` 时 CLI 自行处理包括批量语义判断在内的完整流程；不启用时由宿主提供判断。`progress` 可包含经数值检查的服务已处理页数和固定服务状态，不把服务原始响应或签名 URL 放入任务。上传阶段被拒绝使用 `BUILD_PARSER_UPLOAD_FAILED`，与解析 API 的认证失败区分。结构扫描规则变化可复用未变的解析文本，仅重新切片。
 
-`build create <input> [--project-root DIR] [--name NAME] [--output DIR] [--mode agent|auto] [--parser remote|local] [--force]` 创建任务。项目根默认为当前目录；默认成品位于 `.agents/skills/<name>`。支持 Markdown 与 PDF，知识参考型 Skill 之外的类型不在范围内。
+`build create <input> [--project-root DIR] [--name NAME] [--output DIR] [--mode agent|auto] [--parser remote] [--force]` 创建任务。项目根默认为当前目录；默认成品位于 `.agents/skills/<name>`。支持 Markdown 与 PDF，知识参考型 Skill 之外的类型不在范围内。
 
 `build next|status|pause <task-id> [--project-root DIR]` 推进、查看或暂停；`build read <task-id> [--start N] [--end N] [--limit N]` 分页读取标准 Markdown；`build submit <task-id> (--file JSON文件|--data JSON)` 提交结果；`build resume <task-id> [--from parsing|chunking|indexing|finalize] [--mode agent|auto] [--force]` 恢复；`build run <task-id> [--mode agent|auto] [--until STAGE] [--max-steps N]` 循环推进；`build package <task-id>` 显式打包并返回发布指导，不上传。上述任务命令均支持 `--project-root DIR`。
 
-构建配置 `build config get [--project-root DIR]` 和 `build config set KEY VALUE [--project-root DIR] [--user]` 单独存放：用户级为 `$LEARNOVA_HOME/build-config.json`，项目级为 `.learnova/build-config.json`。优先级为默认值、用户、项目、显式参数；任务保存当时的非敏感快照。配置项：`parser`、`remote_endpoint`、`remote_key_env`、`local_endpoint`、`llm_base_url`、`llm_model`、`llm_key_env`、`min_tokens`、`max_tokens`、`max_depth`、`read_limit`。密钥字段仅保存环境变量名。`.learnova/.gitignore` 忽略 `builds/`，保留项目配置可由用户管理。
+构建配置 `build config get [--project-root DIR]` 和 `build config set KEY VALUE [--project-root DIR] [--user]` 单独存放：用户级为 `$LEARNOVA_HOME/build-config.json`，项目级为 `.learnova/build-config.json`。优先级为默认值、用户、项目、显式参数；任务保存当时的非敏感快照。配置项：`parser`、`remote_endpoint`、`remote_key_env`、`llm_base_url`、`llm_model`、`llm_key_env`、`min_tokens`、`max_tokens`、`max_depth`、`read_limit`。密钥字段仅保存环境变量名。`.learnova/.gitignore` 忽略 `builds/`，保留项目配置可由用户管理。
 
 任务状态为 pending、running、needs_input、paused、failed、completed，阶段依次为 parsing、chunking、indexing、finalize。缺服务配置返回成功结果 `status=needs_input`、`kind=configuration` 和 `questions`。判断请求包含 `schema_version=1`、`task_id`、`request_id`、`document_revision`、`stage`、`kind`、`scope`、`allowed_boundaries` 和有限上下文。提交完整请求信封并增加 `result`：`split_plan` 为 `{splits:[边界ID], protected_ranges:[[起点ID,终点ID]], atomic:false}`；`chunk_metadata` 为 `{title,summary,keywords:[字符串]}`；`skill_metadata` 为 `{name,description}`。不得提交替代原文。输入变化、阶段重置使旧请求失效；配置默认值变化不影响已有快照。输出冲突需要创建时或恢复时显式指定 `--force`。错误包括 `BUILD_TASK_NOT_FOUND`、`BUILD_STALE_REQUEST`、`BUILD_PLAN_INVALID`、`BUILD_INTEGRITY_FAILED`、`BUILD_CONFIG_INVALID`、`BUILD_INPUT_INVALID`、`BUILD_ADAPTER_UNAVAILABLE`；参数错误退出 2，其余错误退出 1，目录冲突沿用现有事务错误。
 
@@ -171,7 +171,7 @@ login（用户亲自执行）
 
 ### PDF 解析契约
 
-`build` 按 `parser=remote|local` 惰性选择 MinerU 适配器。PDF 页数与拆页需要 `pypdf`，本地服务另需 `gradio_client`；缺少依赖报 `BUILD_DEPENDENCY_MISSING`，提示用 `uv pip install --python <运行解释器> pypdf gradio_client` 安装所需包，不影响 Markdown 或原有命令。
+PDF 解析只使用一套 MinerU V4 HTTP 上传、轮询和下载流程；`parser=remote` 为兼容保留的配置名，同时适用于云端和 V4 兼容自部署服务。统一配置 `remote_endpoint` 与可选 `remote_key_env`：后者留空时不发送 API 认证，配置了环境变量名时必须能读取该变量。官方预设仍引用 `MINERU_API_KEY`。自部署服务必须实现相同 V4 协议，不自动兼容原生 V1 或 Gradio。PDF 页数与拆页仅需按需加载 `pypdf`；缺少依赖报 `BUILD_DEPENDENCY_MISSING`，不影响 Markdown 或原有命令。
 
 新增解析配置（全部属于 parsing 的失效及摘要依赖）：
 
@@ -184,14 +184,10 @@ login（用户亲自执行）
 | `remote_model_version` | `vlm` | 远端模型版本参数 |
 | `parser_request_timeout` / `parser_upload_timeout` / `parser_download_timeout` | 30 / 120 / 120 | 请求、上传、下载秒数上限 |
 | `parser_archive_bytes` / `parser_expanded_bytes` / `parser_member_bytes` | 104857600 / 268435456 / 67108864 | ZIP 下载、总展开、单成员字节上限 |
-| `local_api_name` | `/convert_to_markdown_stream` | 部署公开的 Gradio API 名称 |
-| `local_language` | `ch (Chinese, English, Chinese Traditional)` | 本地部署语言下拉选项的完整值，与远端短代码独立 |
-| `local_backend` | `pipeline` | 本地 backend 参数 |
-| `local_result_timeout` | 300 | 本地结果等待秒数上限 |
 
 远端 endpoint 是服务根 URL；POST `/api/v4/file-urls/batch` 顶层发送 `enable_formula/enable_table/language/model_version`，files 内发送通用文件名、`data_id/is_ocr`。PUT 上传原始 PDF，不带 bearer；Content-Type 保持预签名要求的空值，并阻止 HTTP 库自动补入表单类型。GET `/api/v4/extract-results/batch/{batch_id}` 查询一次进度，再下载 `full_zip_url`。单次 next 只推进一个分片的一步，不循环等待云端任务。批次 ID 在上传、轮询、下载前落盘；签名 URL 只留内存。重启遇到等待上传且签名 URL 无法恢复的分片时，在 progress.warnings 和私有状态标记 `upload_resubmitted`，下一步重新提交该分片，已完成分片不重做。
 
-本地部署必须匹配显式 API：`file_path=handle_file(part.pdf), end_pages=分片页数, formula_enable, table_enable, language, backend, url=''`。通过 SDK submit/result 调用，独立进程限制请求与结果等待，隔离 SDK 日志；结果需含唯一一个 ZIP 文件，SDK 下载路径限制在临时结果目录。若部署输出签名不同，应配置 API 名称或使用匹配服务，不能冒充成功。SDK 如提供安全 event_id，立即保存后才等待结果；SDK 无跨进程恢复协议，未完成的本地任务重启会显式记录 `local_resubmitted`。已完成分片仍复用。
+Gradio 路径已移除，不再使用 SDK、独立解析进程或本地事件 ID。旧 `local_endpoint/local_api_name/local_language/local_backend/local_result_timeout` 字段只为读取旧配置、输出契约和断点摘要保留，不接受新设置，也不参与 HTTP 请求。新任务的旧 `parser=local` 配置，以及仍需执行解析的旧任务会返回 `BUILD_CONFIG_INVALID`，须配置 V4 地址后切换为 `remote`。已取得有效解析结果、处于切片或索引等后续阶段的旧任务可直接继续，不强制重解析。需要重跑解析时，再通过 `build reconfigure` 显式切换接口；不自动向其他地址重新上传。已完成历史和既有 V4 断点继续可读。
 
 ZIP 支持 `full.md`、`markdown.md`，或唯一无歧义 Markdown；多个候选报错。所有成员只接受普通相对文件/目录，拒绝穿越、链接、设备、重复成员及展开超限。仅打包 Markdown 实际引用的图片，分片图片独立命名后再统一归一化。缺失或不安全图片失败，不丢弃原文。来自解析内容的图片抽取或校验异常统一返回固定的 `BUILD_PARSER_ARCHIVE_INVALID`，不回显引用标签或原始异常；非字符串结果 URL 返回 `BUILD_PARSER_RESPONSE_INVALID`。
 

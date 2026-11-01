@@ -28,9 +28,9 @@
 
 `build doctor <input> --project-root <PROJECT>` 为只读诊断；不发请求、不验证 Token，仅报告当前进程是否能看到所引用环境变量。另一个终端 export 的变量不会自动传到已运行的 Agent；应在启动 Agent 的环境中提供，或在已有变量的终端运行 CLI，再 doctor 确认。不要向用户索取聊天中的密钥，不搜读私人凭证文件，不擅自改 shell 配置。
 
-首次 PDF 解析没有配置时，合并询问一次受支持方式：官方 MinerU 云解析（会上传文件）或已有本地 Gradio 服务；不提供 CLI 尚不支持的 OCR 路径。用户明确选择云解析后，用 `build start <input> --preset mineru --project-root <PROJECT>`，或 `build config preset mineru --project-root <PROJECT>` 一次保存非敏感配置。预设只含服务地址、环境变量名和 OCR 开关。普通变量名不等于密钥；无需自行加反复确认，但宿主自动审批拒绝后必须说明原因，不能改用手写文件绕过拒绝。
+首次 PDF 解析没有配置时，合并询问一次受支持方式：官方 MinerU 云解析（会上传文件）或已有 V4 兼容自部署 HTTP 服务；不提供 CLI 尚不支持的 OCR 路径。用户明确选择云解析后，用 `build start <input> --preset mineru --project-root <PROJECT>`，或 `build config preset mineru --project-root <PROJECT>` 一次保存非敏感配置。预设只含服务地址、环境变量名和 OCR 开关。普通变量名不等于密钥；无需自行加反复确认，但宿主自动审批拒绝后必须说明原因，不能改用手写文件绕过拒绝。
 
-可选依赖由 doctor 列出，仅在所用虚拟环境按需用 `uv` 安装。远程 PDF 需要 pypdf，本地 Gradio 另需 gradio_client；不要为介绍能力或处理 Markdown 安装这些依赖。
+可选依赖由 doctor 列出，仅在所用虚拟环境按需用 `uv` 安装。PDF 仅需要 pypdf；不要为介绍能力或处理 Markdown 安装这些依赖。
 
 需要完全由 CLI 调用模型时，配置后显式启用 `--mode auto`：
 
@@ -54,3 +54,5 @@ build start <input> --mode auto --project-root <PROJECT>
 日常读取当前成品；build read 仅为构建快照。完成状态是历史，用户编辑、移动输入或卸载成品不会触发重建；社区升级不覆盖本地构建。项目管理在 PROJECT 工作目录执行 list/uninstall --project。私有状态在项目 .learnova/builds/，不分发。
 
 底层 create/next/run 和不带 --continue 的 submit 保留兼容，可用于专门调试；常规流程使用上面的 start/work/submit --continue。
+
+云端和自部署共用 V4 HTTP 流程。自部署填写 `remote_endpoint`，`remote_key_env` 为可选认证环境变量名，留空则不发送认证；名称 `remote` 为兼容保留，不表示只支持云端。自部署必须兼容 `/api/v4/file-urls/batch` 和 `/api/v4/extract-results/batch/{batch_id}` 及相同的上传、结果 ZIP 契约；原生 V1 和 Gradio 不受支持。旧任务已有有效解析内容时可继续，不必重算；仍需解析时，再用 `build reconfigure` 显式改为 `parser=remote` 并设置 V4 地址。仅改默认配置不会更新旧任务。

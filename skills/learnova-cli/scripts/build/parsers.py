@@ -1,16 +1,12 @@
-"""Resumable MinerU adapters. Optional dependencies are imported at use only."""
+"""Resumable MinerU V4 HTTP parsing. PDF dependency is loaded at use only."""
 import base64
 import copy
 import io
-import importlib.util
 import json
-import multiprocessing
 import os
 import posixpath
 import re
 import stat
-import tempfile
-import time
 import uuid
 import zipfile
 from pathlib import Path
@@ -19,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 import net
 from core import page_provenance, skill_build
 from core.errors import CliError
+from .config import require_http
 
 
 def _error(code='BUILD_PARSER_RESPONSE_INVALID', message='解析服务返回格式无效'):
@@ -255,62 +252,10 @@ def read_archive(data, cfg, number, page_offset, page_count, secret=''):
             'raw_page_metadata': _redact(metadata, secret), 'normalizations': edits}
 
 
-def _local_worker(connection, source, directory, cfg, pages):
-    """SDK imports, downloads and all stdout/stderr stay in this bounded subprocess."""
-    with open(os.devnull, 'w') as sink:
-        os.dup2(sink.fileno(), 1)
-        os.dup2(sink.fileno(), 2)
-        try:
-            sdk = _dependency('gradio_client')
-            client = sdk.Client(cfg['local_endpoint'], verbose=False, download_files=directory,
-                                httpx_kwargs={'timeout': cfg['parser_request_timeout']})
-            job = client.submit(file_path=sdk.handle_file(source), end_pages=pages,
-                                formula_enable=cfg['parser_formula'], table_enable=cfg['parser_table'],
-                                language=cfg['local_language'], backend=cfg['local_backend'], url='',
-                                api_name=cfg['local_api_name'])
-            event_id = getattr(job, 'event_id', None)
-            if not isinstance(event_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', event_id):
-                event_id = None
-            connection.send(('submitted', event_id))
-            if not connection.poll(cfg['parser_request_timeout']) or connection.recv() != 'continue':
-                return
-            result = job.result(timeout=cfg['local_result_timeout'])
-            paths = []
-            def collect(value):
-                if isinstance(value, str) and value.lower().endswith('.zip'):
-                    paths.append(Path(value))
-                elif isinstance(value, (list, tuple)):
-                    for item in value:
-                        collect(item)
-                elif isinstance(value, dict) and isinstance(value.get('path'), str):
-                    collect(value['path'])
-            collect(result)
-            if len(paths) != 1:
-                _error()
-            path = paths[0]
-            root = Path(directory).resolve()
-            if (path.is_symlink() or any(p.is_symlink() for p in path.parents)
-                    or not path.resolve().is_relative_to(root)
-                    or not path.is_file() or path.stat().st_size > cfg['parser_archive_bytes']):
-                _error()
-            with path.open('rb') as handle:
-                data = handle.read(cfg['parser_archive_bytes'] + 1)
-            if len(data) > cfg['parser_archive_bytes']:
-                _error()
-            connection.send(('completed', data))
-        except CliError as exc:
-            connection.send(('error', exc.code))
-        except TimeoutError:
-            connection.send(('error', 'BUILD_PARSER_TIMEOUT'))
-        except Exception:
-            connection.send(('error', 'BUILD_PARSER_FAILED'))
-        finally:
-            connection.close()
-
-
 class Parser:
     def advance(self, source, config, state, checkpoint):
         cfg = config
+        require_http(cfg)
         state = copy.deepcopy(state)
         if not state:
             try:
@@ -329,10 +274,7 @@ class Parser:
         for number, part in enumerate(state['parts']):
             if part['status'] == 'done':
                 continue
-            if cfg['parser'] == 'remote':
-                self._remote(source, cfg, state, part, number, checkpoint)
-            else:
-                self._local(source, cfg, state, part, number, checkpoint)
+            self._http(source, cfg, state, part, number, checkpoint)
             return {'status': 'running', 'progress': {'completed_parts': sum(p['status'] == 'done' for p in state['parts']),
                     'total_parts': len(state['parts']), 'part': number + 1, 'state': part['status'],
                     'service_state': part.get('service_state'), 'total_pages': state['page_count'],
@@ -353,11 +295,11 @@ class Parser:
         return {'status': 'completed', 'markdown': text, 'assets': assets,
                 'page_map': {'status': page_provenance.status(ranges, len(text)), 'ranges': ranges}}
 
-    def _remote(self, source, cfg, state, part, number, checkpoint):
+    def _http(self, source, cfg, state, part, number, checkpoint):
         endpoint = cfg['remote_endpoint'].rstrip('/')
-        token = os.environ.get(cfg['remote_key_env'])
-        if not token:
-            _error('BUILD_CONFIG_INVALID', '缺少远端密钥环境变量')
+        token = os.environ.get(cfg['remote_key_env']) if cfg['remote_key_env'] else None
+        if cfg['remote_key_env'] and not token:
+            _error('BUILD_CONFIG_INVALID', '缺少已配置的解析密钥环境变量')
         def api(method, path, body=None):
             result = net.request(method, endpoint + path, body=body, token=token,
                                  timeout=cfg['parser_request_timeout'])
@@ -373,7 +315,7 @@ class Parser:
                 'language': cfg['parser_language'], 'model_version': cfg['remote_model_version'],
                 'files': [{'name': f'part-{number + 1:04d}.pdf', 'data_id': part['data_id'], 'is_ocr': cfg['parser_ocr']}]})
             batch = _id(data.get('batch_id'))
-            if token in batch:
+            if token and token in batch:
                 _error()
             part.update(batch_id=batch, status='submitted', attempts=part['attempts'] + 1)
             checkpoint(state)  # The server ID survives even malformed upload URL replies.
@@ -411,7 +353,7 @@ class Parser:
             checkpoint(state)
             archive = net.request_bytes('GET', url, timeout=cfg['parser_download_timeout'], max_bytes=cfg['parser_archive_bytes'])
             parsed = read_archive(archive, cfg, number, part['start_page'], part['end_page'] - part['start_page'], token)
-            if token in json.dumps(parsed, ensure_ascii=False):
+            if token and token in json.dumps(parsed, ensure_ascii=False):
                 _error('BUILD_PARSER_RESPONSE_INVALID', '解析结果意外包含认证信息')
             part['result'] = parsed
             part['status'] = 'done'
@@ -427,54 +369,3 @@ class Parser:
             _error('BUILD_PARSER_FAILED', '解析服务任务失败；检查输入后重置解析阶段')
         else:
             _error()
-
-    def _local(self, source, cfg, state, part, number, checkpoint):
-        if importlib.util.find_spec('gradio_client') is None:
-            raise CliError('BUILD_DEPENDENCY_MISSING', '缺少 gradio_client；使用 uv pip install --python <运行解释器> gradio_client 安装')
-        if part['attempts'] and 'local_resubmitted' not in state['warnings']:
-            state['warnings'].append('local_resubmitted')
-        part.update(status='submitted', attempts=part['attempts'] + 1)
-        checkpoint(state)
-        content = _pdf_bytes(source, part, state['page_count'])
-        if len(content) > cfg['parser_max_part_bytes']:
-            _error('BUILD_INPUT_INVALID', 'PDF 分片超过上传上限；请调小 parser_pages_per_part')
-        context = multiprocessing.get_context('spawn')
-        parent, child = context.Pipe()
-        with tempfile.TemporaryDirectory(prefix='learnova-parser-') as directory:
-            path = Path(directory) / 'input.pdf'
-            path.write_bytes(content)
-            process = context.Process(target=_local_worker, args=(child, str(path), directory, cfg, part['end_page'] - part['start_page']))
-            process.start()
-            child.close()
-            try:
-                deadline = time.monotonic() + cfg['parser_request_timeout']
-                while True:
-                    if not parent.poll(max(0, deadline - time.monotonic())):
-                        _error('BUILD_PARSER_TIMEOUT', '本地解析请求或结果等待超时')
-                    try:
-                        kind, value = parent.recv()
-                    except EOFError:
-                        _error('BUILD_PARSER_FAILED', '本地解析进程中断')
-                    if kind == 'submitted':
-                        if value:
-                            part['event_id'] = _id(value)
-                        checkpoint(state)
-                        parent.send('continue')
-                        deadline = time.monotonic() + cfg['local_result_timeout']
-                    elif kind == 'completed':
-                        part['result'] = read_archive(value, cfg, number, part['start_page'], part['end_page'] - part['start_page'])
-                        part['status'] = 'done'
-                        checkpoint(state)
-                        return
-                    elif kind == 'error':
-                        if value == 'BUILD_DEPENDENCY_MISSING':
-                            _error(value, '缺少 gradio_client；使用 uv pip install --python <运行解释器> gradio_client 安装')
-                        _error(value, '本地解析失败；检查依赖、API 名称、参数及服务状态')
-            finally:
-                parent.close()
-                if process.is_alive():
-                    process.terminate()
-                process.join(timeout=2)
-                if process.is_alive():
-                    process.kill()
-                    process.join(timeout=2)

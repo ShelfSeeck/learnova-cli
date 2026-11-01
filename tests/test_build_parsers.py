@@ -1,4 +1,4 @@
-"""MinerU wire and installed-package tests: synthetic PDFs, localhost, fake optional SDKs."""
+"""MinerU V4 wire and installed-package tests with synthetic PDFs and localhost."""
 import base64
 import copy
 from contextlib import contextmanager
@@ -455,6 +455,15 @@ class RemoteTests(unittest.TestCase):
             self.advance()
         self.assertEqual(raised.exception.code, 'BUILD_INPUT_INVALID')
 
+    def test_native_v1_reply_is_rejected_without_protocol_fallback(self):
+        self.fixture.fail_post = {'status': 'success', 'task_id': 'native-v1-task'}
+        with self.assertRaises(CliError) as raised:
+            self.advance()
+        self.assertEqual(raised.exception.code, 'BUILD_PARSER_FAILED')
+        self.assertEqual([(call[0], call[1]) for call in self.fixture.calls],
+                         [('POST', '/api/v4/file-urls/batch')])
+        self.assertEqual(self.fixture.batches, {})
+
     def test_interrupt_before_download_and_failed_poll_never_resubmits(self):
         self.advance()
         original = self.checkpoint
@@ -543,51 +552,16 @@ class RemoteTests(unittest.TestCase):
             self.assertEqual(provenance, {'schema_version': 2, 'source': 'local-build', 'version': None})
 
 FAKE_PDF = '''
+class Page:
+    def extract_text(self): return ''
 class PdfReader:
     def __init__(self, source):
         from pathlib import Path
-        self.pages = list(range(int(Path(source).read_bytes().split(b'=')[-1])))
+        self.pages = [Page() for _ in range(int(Path(source).read_bytes().split(b'=')[-1]))]
 class PdfWriter:
     def __init__(self): self.pages = []
     def add_page(self, page): self.pages.append(page)
     def write(self, target): target.write(b'%PDF pages=' + str(len(self.pages)).encode())
-'''
-FAKE_SDK = '''
-import os
-import time
-import zipfile
-from pathlib import Path
-print('SDK noisy import')
-def handle_file(path):
-    assert Path(path).read_bytes().startswith(b'%PDF')
-    return {'path': path}
-class Client:
-    def __init__(self, endpoint, verbose, download_files, httpx_kwargs):
-        print('SDK noisy client')
-        assert verbose is False and httpx_kwargs['timeout'] > 0
-        self.directory = download_files
-        if os.environ.get('FAKE_SDK_MODE') == 'request_timeout': time.sleep(5)
-    def submit(self, **kwargs):
-        assert kwargs['api_name'] == '/convert_to_markdown_stream'
-        assert kwargs['language'] == 'ch (Chinese, English, Chinese Traditional)'
-        assert kwargs['backend'] == 'pipeline' and kwargs['url'] == ''
-        assert kwargs['formula_enable'] is True and kwargs['table_enable'] is True
-        assert kwargs['end_pages'] == 1 and set(kwargs['file_path']) == {'path'}
-        return Job(self.directory)
-class Job:
-    event_id = 'local-event-1'
-    def __init__(self, directory): self.directory = directory
-    def result(self, timeout):
-        print('SDK noisy result')
-        mode = os.environ.get('FAKE_SDK_MODE')
-        if mode == 'result_timeout': time.sleep(5)
-        if mode == 'failure': raise RuntimeError('opaque secret https://example.invalid/?token=secret')
-        if mode == 'unsafe': return '/tmp/outside.zip'
-        target = Path(self.directory) / 'result.zip'
-        with zipfile.ZipFile(target, 'w') as z:
-            z.writestr('markdown.md', '# Local\\n\\nContent.\\n')
-            z.writestr('structured_content.json', '[{"page_idx":0,"text":"Content."}]')
-        return ('preview', str(target))
 '''
 
 
@@ -598,6 +572,7 @@ class InstalledTests(unittest.TestCase):
         self.optional = self.root / 'optional'
         self.optional.mkdir()
         (self.optional / 'pypdf.py').write_text(FAKE_PDF)
+        (self.optional / 'gradio_client.py').write_text("raise AssertionError('retired SDK must not be imported')\n")
         self.package = self.root / 'installed/learnova-cli'
         shutil.copytree(SCRIPTS.parent, self.package, ignore=shutil.ignore_patterns('__pycache__'))
         self.project = self.root / 'project'
@@ -721,6 +696,8 @@ class InstalledTests(unittest.TestCase):
             self.assertEqual(json.loads(job)['normalized_page_map']['ranges'][0]['page'], 1)
             self.assertNotIn(SECRET, job)
             self.assertNotIn(SIGNED, job)
+            self.assertEqual([call[0] for call in fixture.calls], ['POST', 'PUT', 'GET', 'GET'])
+            self.assertTrue(Path(self.command('package', task)['package']).is_file())
         finally:
             fixture.close()
 
@@ -763,52 +740,187 @@ class InstalledTests(unittest.TestCase):
         finally:
             fixture.close()
 
-    def test_local_sdk_isolated_logs_parameters_and_provenance(self):
-        (self.optional / 'gradio_client.py').write_text(FAKE_SDK)
-        self.setup_config(parser='local', local_endpoint='http://127.0.0.1:9999')
-        task = self.command('create', str(self.source))['task_id']
-        result = self.finish(task)
-        job = json.loads((self.project / '.learnova/builds' / task / 'job.json').read_text())
-        self.assertEqual(job['parser_state']['parts'][0]['event_id'], 'local-event-1')
-        self.assertEqual(job['parser_state']['parts'][0]['attempts'], 1)
-        provenance = json.loads((Path(result['result_path']) / '.learnova-build.json').read_text())
-        self.assertEqual(provenance, {'schema_version': 2, 'source': 'local-build', 'version': None})
-        self.assertEqual(job['normalized_page_map']['status'], 'partial')
-        self.assertEqual(job['normalized_page_map']['ranges'][0]['page'], 1)
+    def test_installed_anonymous_v4_build_and_doctor_need_only_pypdf(self):
+        fixture = Fixture()
+        try:
+            self.setup_config(remote_endpoint=fixture.url, remote_key_env='')
+            report = self.command('doctor', str(self.source))
+            self.assertTrue(report['ready'])
+            self.assertEqual(report['dependencies'], {'pypdf': True})
+            self.assertEqual(report['input']['pages'], 1)
+            self.assertEqual(fixture.calls, [])
+            task = self.command('create', str(self.source))['task_id']
+            result = self.finish(task)
+            self.assertTrue((Path(result['result_path']) / 'SKILL.md').is_file())
+            self.assertTrue(Path(self.command('package', task)['package']).is_file())
+            self.assertEqual([call[0] for call in fixture.calls], ['POST', 'PUT', 'GET', 'GET'])
+            self.assertTrue(all(call[2] is None for call in fixture.calls))
+            self.assertEqual(fixture.calls[0][1], '/api/v4/file-urls/batch')
+            self.assertEqual(fixture.calls[2][1], '/api/v4/extract-results/batch/batch-0')
+            job = json.loads((self.project / '.learnova/builds' / task / 'job.json').read_text())
+            self.assertNotIn('event_id', job['parser_state']['parts'][0])
+            self.assertEqual(job['parser_state']['parts'][0]['attempts'], 1)
+            self.assertEqual(job['normalized_page_map']['status'], 'complete')
+        finally:
+            fixture.close()
 
-    def test_installed_local_query_urls_preserve_source(self):
+    def test_installed_v4_query_urls_preserve_source(self):
         link = '[query](https://example.invalid/?q=synthetic&x=%2B)'
-        (self.optional / 'gradio_client.py').write_text(FAKE_SDK.replace('Content.', 'Content. ' + link))
-        self.setup_config(parser='local', local_endpoint='http://127.0.0.1:9999')
-        task = self.command('create', str(self.source))['task_id']
-        result = self.finish(task)
-        output = Path(result['result_path'])
-        provenance = json.loads((output / '.learnova-build.json').read_text())
-        job = json.loads((self.project / '.learnova/builds' / task / 'job.json').read_text())
-        restored = ''.join((output / ('references/' + c['id'] + '.md')).read_text() for c in job['chunks'])
-        self.assertEqual(restored, '# Local\n\nContent. ' + link + '\n')
-        self.assertEqual(self.command('read', task)['text'], restored)
-        self.assertEqual(self.command('status', task)['status'], 'completed')
+        text = '# Source\n\nContent. ' + link + '\n'
+        fixture = Fixture()
+        try:
+            fixture.archive_override = archive([('markdown.md', text)])
+            self.setup_config(remote_endpoint=fixture.url, remote_key_env='TEST_PARSER_KEY')
+            task = self.command('create', str(self.source))['task_id']
+            result = self.finish(task)
+            output = Path(result['result_path'])
+            job = json.loads((self.project / '.learnova/builds' / task / 'job.json').read_text())
+            restored = ''.join((output / ('references/' + c['id'] + '.md')).read_text() for c in job['chunks'])
+            self.assertEqual(restored, text)
+            self.assertEqual(job['parser_state']['parts'][0]['result']['markdown'], text)
+            self.assertEqual(self.command('read', task)['text'], text)
+            self.assertEqual(self.command('status', task)['status'], 'completed')
+        finally:
+            fixture.close()
 
-    def test_local_sdk_timeout_failure_and_resume(self):
-        (self.optional / 'gradio_client.py').write_text(FAKE_SDK)
-        self.setup_config(parser='local', local_endpoint='http://127.0.0.1:9999', parser_request_timeout=1, local_result_timeout=1)
-        for mode in ('request_timeout', 'result_timeout', 'failure', 'unsafe'):
-            with self.subTest(mode=mode):
-                task = self.command('create', str(self.source))['task_id']
-                self.env['FAKE_SDK_MODE'] = mode
-                error = self.command('next', task, error=True)['error']
-                self.assertEqual(error['code'], 'BUILD_PARSER_TIMEOUT' if 'timeout' in mode else ('BUILD_PARSER_RESPONSE_INVALID' if mode == 'unsafe' else 'BUILD_PARSER_FAILED'))
-                self.assertNotIn('secret', json.dumps(error))
-                state_path = self.project / '.learnova/builds' / task / 'job.json'
-                self.assertNotIn('secret', state_path.read_text())
-                if mode != 'request_timeout':
-                    self.assertEqual(json.loads(state_path.read_text())['parser_state']['parts'][0]['event_id'], 'local-event-1')
-                del self.env['FAKE_SDK_MODE']
-                self.command('resume', task)
-                state = self.command('next', task)
-                self.assertIn('local_resubmitted', state['progress']['warnings'])
-                self.assertEqual(state['progress']['state'], 'done')
+    def test_installed_v4_download_failure_resumes_without_reupload(self):
+        fixture = Fixture()
+        try:
+            self.setup_config(remote_endpoint=fixture.url, remote_key_env='TEST_PARSER_KEY')
+            task = self.command('create', str(self.source))['task_id']
+            self.command('next', task)
+            fixture.fail_download = True
+            error = self.command('next', task, error=True)['error']
+            self.assertEqual(error['code'], 'HTTP_ERROR')
+            path = self.project / '.learnova/builds' / task
+            failed = jobs.read(path)
+            part = failed['parser_state']['parts'][0]
+            self.assertEqual(failed['status'], 'failed')
+            self.assertEqual(part['status'], 'downloading')
+            self.assertEqual(part['batch_id'], 'batch-0')
+            self.assertNotIn(SECRET, (path / 'job.json').read_text())
+            self.assertNotIn(SIGNED, (path / 'job.json').read_text())
+            fixture.fail_download = False
+            self.command('resume', task)
+            self.assertEqual(jobs.read(path)['validity']['parsing'], failed['validity']['parsing'])
+            self.assertEqual(self.finish(task)['status'], 'completed')
+            self.assertEqual(len(fixture.batches), 1)
+            self.assertEqual(sum(call[0] == 'PUT' for call in fixture.calls), 1)
+            resumed = jobs.read(path)
+            self.assertEqual(resumed['parser_state']['parts'][0]['data_id'], part['data_id'])
+            self.assertEqual(resumed['parser_state']['parts'][0]['attempts'], 1)
+        finally:
+            fixture.close()
+
+    def legacy_local_task(self, task, endpoint):
+        path = self.project / '.learnova/builds' / task
+        state = jobs.read(path)
+        state['config'].update(parser='local', local_endpoint=endpoint)
+        state['parser_override'] = 'local'
+        part = {'start_page': 0, 'end_page': 1, 'status': 'submitted', 'data_id': 'legacy',
+                'attempts': 1, 'event_id': 'local-event-1'}
+        if state['status'] == 'completed':
+            part.update(status='done', result=state['parser_state']['parts'][0]['result'])
+        state['parser_state'] = {'version': 1, 'page_count': 1, 'warnings': [], 'parts': [part]}
+        jobs.write(path, state)
+        return path
+
+    def test_installed_config_keeps_retired_fields_in_output(self):
+        retired = {'local_endpoint': 'http://localhost:1234', 'local_api_name': '/legacy',
+                   'local_language': 'legacy', 'local_backend': 'legacy', 'local_result_timeout': 90}
+        self.setup_config(**retired)
+        output = self.command('config', 'get')
+        self.assertEqual({key: output[key] for key in retired}, retired)
+        error = self.command('config', 'set', 'local_endpoint', 'http://localhost:4321', error=True)['error']
+        self.assertEqual(error['code'], 'BUILD_CONFIG_INVALID')
+        self.assertEqual(self.command('config', 'get'), output)
+
+    def test_legacy_local_task_requires_explicit_v4_reconfigure(self):
+        fixture = Fixture()
+        try:
+            self.setup_config(remote_endpoint=fixture.url, remote_key_env='')
+            task = self.command('create', str(self.source))['task_id']
+            path = self.legacy_local_task(task, fixture.url)
+            error = self.command('next', task, error=True)['error']
+            self.assertEqual(error['code'], 'BUILD_CONFIG_INVALID')
+            self.assertIn('reconfigure', error['message'])
+            self.assertIn('remote_endpoint', error['message'])
+            self.assertEqual(fixture.calls, [])
+            self.assertEqual(jobs.read(path)['parser_state']['parts'][0]['event_id'], 'local-event-1')
+            self.command('reconfigure', task, '--set', 'parser=remote', '--set', 'remote_endpoint=' + fixture.url)
+            self.assertEqual(jobs.read(path)['parser_state'], {})
+            self.assertEqual(self.finish(task)['status'], 'completed')
+            self.assertEqual([call[0] for call in fixture.calls], ['POST', 'PUT', 'GET', 'GET'])
+        finally:
+            fixture.close()
+
+    def test_legacy_post_parsing_tasks_reuse_parsed_results(self):
+        fixture = Fixture()
+        try:
+            self.setup_config(remote_endpoint=fixture.url, remote_key_env='')
+            task = self.command('create', str(self.source))['task_id']
+            result = self.finish(task)
+            output = Path(result['result_path'])
+            path = self.project / '.learnova/builds' / task
+            baseline = jobs.read(path)
+            baseline['result_path'] = None
+            calls = list(fixture.calls)
+            for stage in ('chunking', 'indexing', 'finalize'):
+                with self.subTest(stage=stage):
+                    shutil.rmtree(output)
+                    legacy = copy.deepcopy(baseline)
+                    legacy.update(stage=stage, status='paused', request=None, parser_override='local')
+                    legacy['config'].update(parser='local', local_endpoint=fixture.url)
+                    for part in legacy['parser_state']['parts']:
+                        part.pop('batch_id', None)
+                        part['event_id'] = 'legacy-event'
+                    jobs.write(path, legacy)
+                    self.assertEqual(self.command('resume', task)['status'], 'pending')
+                    self.assertEqual(self.command('work', task)['status'], 'completed')
+                    self.assertTrue((output / 'SKILL.md').is_file())
+                    self.assertEqual(jobs.read(path)['text'], baseline['text'])
+                    self.assertEqual(jobs.read(path)['config']['parser'], 'local')
+                    self.assertEqual(fixture.calls, calls)
+            shutil.rmtree(output)
+            active = copy.deepcopy(baseline)
+            active.update(stage='indexing', status='pending', request=None)
+            active['metadata'].pop('description', None)
+            jobs.write(path, active)
+            request = self.command('next', task)['request']
+            self.assertEqual(request['kind'], 'skill_metadata')
+            legacy = jobs.read(path)
+            legacy['config']['parser'] = 'local'
+            legacy['parser_override'] = 'local'
+            jobs.write(path, legacy)
+            envelope = dict(request, result={'name': 'sample', 'description': 'Reference'})
+            self.assertEqual(self.command('submit', task, '--data', json.dumps(envelope))['status'], 'pending')
+            self.assertEqual(self.command('work', task)['status'], 'completed')
+            self.assertTrue((output / 'SKILL.md').is_file())
+            self.assertEqual(fixture.calls, calls)
+        finally:
+            fixture.close()
+
+    def test_completed_legacy_local_history_remains_readable(self):
+        fixture = Fixture()
+        try:
+            self.setup_config(remote_endpoint=fixture.url, remote_key_env='')
+            task = self.command('create', str(self.source))['task_id']
+            completed = self.finish(task)
+            text = self.command('read', task)['text']
+            path = self.legacy_local_task(task, fixture.url)
+            original = (path / 'job.json').read_bytes()
+            self.source.unlink()
+            before = len(fixture.calls)
+            for verb in ('status', 'next', 'resume'):
+                state = self.command(verb, task)
+                self.assertEqual(state['status'], 'completed')
+                self.assertEqual(state['result_path'], completed['result_path'])
+            self.assertEqual(self.command('read', task)['text'], text)
+            self.assertTrue(Path(self.command('package', task)['package']).is_file())
+            self.assertEqual(len(fixture.calls), before)
+            self.assertEqual((path / 'job.json').read_bytes(), original)
+        finally:
+            fixture.close()
 
     def test_missing_optional_dependency_does_not_break_old_commands(self):
         # A fake missing package exercises import failure even on hosts with pypdf installed.
@@ -868,11 +980,11 @@ class ConfigTests(unittest.TestCase):
             self.assertIs(config.parse_value('parser_formula', 'false'), False)
             with self.assertRaises(CliError):
                 config.parse_value('parser_formula', 'no')
-            for key, value in [('local_api_name', '/api?token=bad'), ('local_language', 'bad\nvalue'), ('parser_language', '?bad'), ('parser_formula', 1), ('parser_member_bytes', 0)]:
+            for key, value in [('parser_language', '?bad'), ('parser_formula', 1), ('parser_member_bytes', 0)]:
                 with self.subTest(key=key), self.assertRaises(CliError):
                     config.validate(dict(config.DEFAULTS, **{key: value}))
 
-    def test_pdf_split_boundary_and_missing_gradio(self):
+    def test_pdf_split_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source = root / 'source.pdf'
@@ -883,9 +995,71 @@ class ConfigTests(unittest.TestCase):
                 data = parsers._pdf_bytes(source, {'start_page': 1, 'end_page': 3}, 3)
                 self.assertEqual(data, b'%PDF pages=2')
                 self.assertEqual(parsers._pdf_bytes(source, {'start_page': 0, 'end_page': 3}, 3), source.read_bytes())
-            with patch.object(parsers.importlib.util, 'find_spec', return_value=None), self.assertRaises(CliError) as raised:
-                parsers.Parser()._local(source, config.DEFAULTS, {}, {}, 0, lambda s: None)
-            self.assertEqual(raised.exception.code, 'BUILD_DEPENDENCY_MISSING')
+
+    def test_v4_parsing_snapshot_defaults_remain_compatible(self):
+        legacy = {'parser': 'remote', 'remote_endpoint': '', 'remote_key_env': '', 'local_endpoint': '',
+                  'parser_pages_per_part': 200, 'parser_max_part_bytes': 209715200,
+                  'parser_language': 'ch', 'parser_formula': True, 'parser_table': True, 'parser_ocr': False,
+                  'remote_model_version': 'vlm', 'parser_request_timeout': 30, 'parser_upload_timeout': 120,
+                  'parser_download_timeout': 120, 'parser_archive_bytes': 104857600,
+                  'parser_expanded_bytes': 268435456, 'parser_member_bytes': 67108864,
+                  'local_api_name': '/convert_to_markdown_stream',
+                  'local_language': 'ch (Chinese, English, Chinese Traditional)',
+                  'local_backend': 'pipeline', 'local_result_timeout': 300}
+        self.assertEqual(config.PARSING_KEYS, set(legacy))
+        self.assertEqual({key: config.DEFAULTS[key] for key in config.PARSING_KEYS}, legacy)
+
+    def test_optional_auth_and_configured_missing_key(self):
+        cfg = dict(config.DEFAULTS, remote_endpoint='https://example.invalid')
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(config.missing(cfg, 'remote'), [])
+            cfg['remote_key_env'] = 'SYNTHETIC_MISSING_KEY'
+            self.assertEqual(config.missing(cfg, 'remote'), ['remote_key_env'])
+            os.environ['SYNTHETIC_MISSING_KEY'] = SECRET
+            self.assertEqual(config.missing(cfg, 'remote'), [])
+
+    def test_retired_local_settings_are_read_only(self):
+        import store
+        retired = {'local_endpoint': 'http://localhost:1234', 'local_api_name': '/legacy',
+                   'local_language': 'legacy', 'local_backend': 'legacy', 'local_result_timeout': 90}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(store, 'LEARNOVA_HOME', Path(tmp) / 'home'):
+            root = Path(tmp)
+            store._write_json(root / '.learnova/build-config.json', retired)
+            loaded = config.load(root)
+            self.assertEqual({key: loaded[key] for key in retired}, retired)
+            original = (root / '.learnova/build-config.json').read_bytes()
+            for key, value in retired.items():
+                with self.subTest(key=key), self.assertRaises(CliError) as raised:
+                    config.set_value(root, key, value)
+                self.assertEqual(raised.exception.code, 'BUILD_CONFIG_INVALID')
+                self.assertEqual((root / '.learnova/build-config.json').read_bytes(), original)
+
+    def test_local_parser_is_rejected_before_pdf_or_network_access(self):
+        cfg = dict(config.DEFAULTS, parser='local', local_endpoint='http://localhost:1234')
+        actions = [lambda: config.validate(cfg), lambda: config.missing(cfg, 'local'),
+                   lambda: parsers.Parser().advance(Path('missing.pdf'), cfg, {}, lambda state: None)]
+        with patch.object(parsers, '_pdf', side_effect=AssertionError('must not read PDF')), \
+                patch.object(net, 'request', side_effect=AssertionError('must not contact service')):
+            for action in actions:
+                with self.subTest(action=actions.index(action)), self.assertRaises(CliError) as raised:
+                    action()
+                self.assertEqual(raised.exception.code, 'BUILD_CONFIG_INVALID')
+                self.assertIn('remote_endpoint', str(raised.exception))
+
+    def test_pdf_doctor_reports_only_the_missing_pypdf_dependency(self):
+        import store
+        from build import preflight
+        with tempfile.TemporaryDirectory() as tmp, patch.object(store, 'LEARNOVA_HOME', Path(tmp) / 'home'):
+            root = Path(tmp)
+            source = root / 'source.pdf'
+            source.write_bytes(b'%PDF synthetic')
+            config.set_value(root, 'remote_endpoint', 'https://example.invalid')
+            with patch.object(preflight.importlib.util, 'find_spec', return_value=None) as find_spec:
+                report = preflight.inspect(root, source)
+            find_spec.assert_called_once_with('pypdf')
+            self.assertEqual(report['dependencies'], {'pypdf': False})
+            self.assertEqual(report['issues'][0]['packages'], ['pypdf'])
+            self.assertFalse(report['ready'])
 
 
 if __name__ == '__main__':

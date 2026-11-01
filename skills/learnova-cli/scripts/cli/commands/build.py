@@ -15,7 +15,7 @@ def register(sub):
         item = actions.add_parser(action)
         item.add_argument('input')
         item.add_argument('--mode', choices=('agent', 'auto'), default='agent')
-        item.add_argument('--parser', choices=('remote', 'local'))
+        item.add_argument('--parser', choices=('remote',))
         if action != 'doctor':
             item.add_argument('--name')
             item.add_argument('--output')

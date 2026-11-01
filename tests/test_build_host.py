@@ -295,11 +295,13 @@ if __name__ == '__main__':
 
 class AdapterTest(unittest.TestCase):
     def test_parser_checkpoint_and_resume(self):
+        from unittest.mock import patch
         scripts = str(CLI.parent)
         sys.path.insert(0, scripts)
         try:
+            import store
             from build.pipeline import BuildService
-            with tempfile.TemporaryDirectory() as tmp:
+            with tempfile.TemporaryDirectory() as tmp, patch.object(store, 'LEARNOVA_HOME', Path(tmp) / 'home'):
                 root = Path(tmp)
                 source = root / 'input.pdf'
                 source.write_bytes(b'%PDF synthetic')
@@ -313,11 +315,11 @@ class AdapterTest(unittest.TestCase):
                             raise AssertionError(self_state)
                         return {'status': 'completed', 'markdown': '# Parsed\n', 'assets': {}, 'page_map': [{'page': 1}]}
                 service = BuildService(root, parser=Parser())
-                state = service.create(source, parser='local')
+                state = service.create(source)
                 task = state['task_id']
                 config_path = root / '.learnova/build-config.json'
-                config_path.write_text(json.dumps({'local_endpoint': 'http://localhost:1234'}))
-                service.reconfigure(task, {'local_endpoint': 'http://localhost:1234'})
+                config_path.write_text(json.dumps({'remote_endpoint': 'http://localhost:1234', 'remote_key_env': ''}))
+                service.reconfigure(task, {'remote_endpoint': 'http://localhost:1234', 'remote_key_env': ''})
                 self.assertEqual(service.next(task)['progress'], {'part': 1})
                 self.assertEqual(service.next(task)['request']['kind'], 'split_plan')
                 saved = json.loads((root / '.learnova/builds' / task / 'job.json').read_text())
@@ -343,8 +345,8 @@ class AdapterTest(unittest.TestCase):
                 source = root / 'input.pdf'
                 source.write_bytes(b'%PDF synthetic')
                 service = BuildService(root, parser=Parser())
-                task = service.create(source, parser='local')['task_id']
-                service.reconfigure(task, {'local_endpoint': 'http://localhost:1234'})
+                task = service.create(source)['task_id']
+                service.reconfigure(task, {'remote_endpoint': 'http://localhost:1234', 'remote_key_env': ''})
                 with self.assertRaises(RuntimeError):
                     service.next(task)
                 saved = json.loads((root / '.learnova/builds' / task / 'job.json').read_text())
@@ -413,8 +415,9 @@ class BuildIntegrityTest(HostBuildTest):
         self.assertEqual(state['stage'], 'chunking')
         path = self.root / '.learnova/builds' / task / 'job.json'
         self.assertIsNotNone(json.loads(path.read_text())['text'])
-        state = self.cli('reconfigure', task, '--set', 'parser=local')
+        state = self.cli('reconfigure', task, '--set', 'remote_endpoint=http://localhost:1234')
         self.assertEqual(state['stage'], 'parsing')
+        self.assertIsNone(json.loads(path.read_text())['text'])
 
     def test_failed_conflict_resume_and_management(self):
         first = self.finish(self.cli('create', str(self.source)))

@@ -7,7 +7,7 @@
 1. 在 `docs/cli-spec.md` §2 命令面中登记命令、参数与默认行为。
 2. 新建 `skills/learnova-cli/scripts/cli/commands/<name>.py`，实现 `register(sub)` 与 `handler(args, ctx) -> dict`。
 3. 在 `skills/learnova-cli/scripts/cli/commands/__init__.py` 的 `MODULES` 注册一行。
-4. handler 内：解析参数 → 经 `sources/resolver.py` 取数据（如需要）→ 经 `engine.py` 操作文件（如需要）→ 返回 dict。
+4. handler 内：解析参数 → 委托对应服务 → 返回 dict。数据源选择走 `sources/resolver.py`，目录事务走 `engine.py`，状态读写走 `store.py`。
 5. 需要新 error code 时，在本文「错误码登记表」登记。
 6. 加测试：命令逻辑用假 ctx + FakeSource 注入测；纯逻辑抽到 `core/` 单测。
 
@@ -24,6 +24,13 @@
 1. 在 `skills/learnova-cli/scripts/sources/` 新建模块，实现 `SkillSource` 协议（`search` / `info` / `fetch`）。
 2. 在 `sources/resolver.py` 注册并明确其在回退链中的位置。
 3. 更新 `docs/architecture.md` §3 与 `docs/cli-spec.md` §5 检索策略。
+
+## 维护账号、发布与遥测
+
+- 登录交互、刷新 Cookie、请求 nonce 和来源绑定统一由 `auth.py` 管理。访问凭证只留内存；后台遥测使用 `allow_refresh=False`，不得保存、清除或刷新账号状态。
+- 发布目录扫描、上传、提交与审核查询统一由 `publishing.py` 管理。每次上传创建新条目，不按同名技能猜测远端发布目标；提交成功只代表进入审核。
+- 发布与构建打包共用 `core/package_paths.py`，修改私有文件过滤时同时检查两个入口。普通 YAML 的嵌套元数据不能覆盖顶层名称或版本。
+- 遥测仅在显式配置同源端点并满足登录及收集条件时发送。稳定映射只读现有缓存，缺映射或认证失败即丢弃事件，不额外联网补映射、不影响安装。
 
 ## 修改镜像生产端
 
@@ -95,9 +102,12 @@ python -m unittest tests.test_mirror_sync -v
 | 镜像布局/索引/同步行为 | `mirror-spec.md` |
 | 进度变化 | `AGENTS.md` 开发进度 |
 
+实现、合并和部署分别记录，注明对应分支或版本。通用环境核查表不等于开发待办；本地测试通过不代表已上线或其他平台已实测。
+
 ## 测试与提交
 
 - `core/` 纯逻辑必须有单测；端到端走 T1（本地 stub + 临时目录），不测真实网络。
+- 账号改动覆盖 `test_auth.py`；数据源与回退覆盖 `test_backend_source.py`；发布、遥测和子进程链路分别覆盖 `test_publish.py`、`test_telemetry.py`、`test_backend_flow.py`。跨模块缺陷回归集中在 `test_completion_defects.py`。
 - 提交前：`python -m unittest discover tests -v`（T0 + producer）；`python tests/t1_mirror_flow.py`（T1）。
 - commit message 用英文，前缀 `feat:` / `fix:` / `docs:` / `test:` / `chore:`。
 - `internal/` 为本地目录，已通过 `.git/info/exclude` 排除；克隆新环境后如需保留该约定，重新执行 `echo "/internal/" >> .git/info/exclude`。
@@ -116,18 +126,20 @@ python -m unittest tests.test_mirror_sync -v
 
 | code | 含义 | 退出码 |
 |---|---|---|
-| `BUILD_DEPENDENCY_MISSING` | 缺少惰性 PDF/Gradio 依赖，按提示使用 uv 安装 | 1 |
-| `BUILD_PARSER_FAILED` | 服务返回失败或本地 SDK 调用失败，消息不含上游正文 | 1 |
+| `BUILD_DEPENDENCY_MISSING` | 缺少惰性 PDF 依赖 pypdf，按提示使用 uv 安装 | 1 |
+| `BUILD_PARSER_FAILED` | HTTP 解析服务返回失败，消息不含上游正文 | 1 |
 | `BUILD_PARSER_RESPONSE_INVALID` | 解析服务回复结构、ID、Markdown 或图片不符合契约 | 1 |
 | `BUILD_PARSER_ARCHIVE_INVALID` | ZIP 路径、成员类型、大小或歧义校验失败 | 1 |
-| `BUILD_PARSER_TIMEOUT` | 本地 SDK 请求/结果等待超时 | 1 |
+| `BUILD_PARSER_TIMEOUT` | 保留兼容错误码；当前 HTTP 超时使用 HTTP_TIMEOUT | 1 |
 | `BUILD_PARSER_UPLOAD_FAILED` | 预签名对象存储上传被拒绝，与解析 API Token 认证阶段区分 | 1 |
 | `HTTP_TIMEOUT` | HTTP 连接/上传/响应超时 | 1 |
 
 解析内容异常必须在 parser 边界替换成固定安全消息，不透传共享 Markdown 抽取函数的输入标签。HTTP 响应头读取前的连接断开同样翻译为 `HTTP_ERROR`，且不附带底层异常信息。
 
-新增解析配置必须纳入 config 的集中依赖组，供 jobs seals 和 pipeline reconfigure 同时使用。远端 HTTP 测试仅用 localhost 临时服务，SDK/pypdf 用可替换依赖边界；覆盖认证不泄露、签名 URL 不落盘、上传/轮询/下载中断、完成分片复用、ZIP 安全、页偏移和安装包内完整构建。完整 unittest 与 T1 都须保持通过。官方云端解析与自动模型已通过真实服务验收；本地 Gradio 依部署单独验收。
+新增解析配置必须纳入 config 的集中依赖组，供 jobs seals 和 pipeline reconfigure 同时使用。HTTP 测试仅用 localhost 临时服务，pypdf 用可替换依赖边界；覆盖认证不泄露、签名 URL 不落盘、上传/轮询/下载中断、完成分片复用、ZIP 安全、页偏移和安装包内完整构建。完整 unittest 与 T1 都须保持通过。官方云端解析与自动模型已通过真实服务验收；自部署仅承诺 V4 兼容 HTTP 协议。
 
 自动判断错误 `BUILD_MODEL_REQUEST_FAILED` 和 `BUILD_MODEL_RESPONSE_INVALID` 使用固定脱敏信息；模型方案仍由 `BUILD_PLAN_INVALID` 校验。修改随包分发的判断规则会让活动任务从切片阶段重新判断并保留解析结果；旧请求失效。完成任务保持历史状态，只有显式 resume --from 才重新验证依赖。运行中仅解析轮询间隔变化不会使解析结果失效。
 
 轻量管理回归必须覆盖：编辑后来源/安装版本不变，扫描不递归读取；schema 2 最小记录和旧 schema 1 识别；完成后成品/输入删除与规则变化不影响历史；显式重建冲突/force 和私有断点复用；打包当前新增/编辑内容并排除管理、VCS 和凭证文件，同时拒绝损坏元数据、缺失参考/图片、不安全路径及链接。生成期精确覆盖、保护区间、私有 seals 和事务恢复测试必须保留。
+
+统一解析器仅实现 V4 HTTP 上传、轮询与下载。旧 local_* 字段只保留配置读取、输出与历史摘要兼容，不接受新设置；旧 parser=local 任务如已有有效解析结果可继续后续阶段；仅在需要再次解析时提示显式 reconfigure，不能静默向其他服务重提交。修改默认配置项或 PARSING_KEYS 时须验证既有 V4 断点和已完成历史仍可读取。

@@ -18,21 +18,23 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 
 ## 开发进度
 
-- [x] 设计文档（cli-spec / mirror-spec / architecture）+ 按架构的 scripts 骨架
-- [x] M1 镜像链路：`mirror/` producer 已实现并通过本地/生产快照验证；维护者确认同步服务已部署，正式镜像可匿名读取，不重复部署
-- [x] M2 CLI 核心：MirrorSource、engine.install/uninstall、install/uninstall/upgrade 命令
-- [x] M3 CLI：login/logout/whoami、publish/status、BackendSource、resolver 降级链、init 已实现并通过独立复核；遥测客户端已实现，需显式配置后端专用端点才发送
-- [x] M4 分发实现：正式主仓与 `npx skills add` 三种 agent 安装已验收；Linux Python 3.10–3.13、POSIX 和 Linux PowerShell 入口通过
-- [ ] 外部上线：后端事件端点需按部署环境验收；原生 Windows/macOS 尚未实测，托管 CI 不作为本轮功能补全的前置条件
+功能补全已在 `codex/complete-cli` 实现并验收，目前待合入 `main`。下列完成项包含该功能分支，不能据此认定主分支已发行或配套服务已上线。
 
-- [x] 本地文档构建：Markdown/PDF、宿主及自动判断、断点恢复和显式打包；官方云端 PDF 与自动模型构建已通过真实服务验收，本地 Gradio 依实际部署单独验收
-- [x] 已复现缺陷：镜像缓存串源、跨 agent 升级回滚、构建返回过期请求等已修复，并覆盖回归与独立复核
+- [x] 设计文档与 scripts 架构
+- [x] M1 镜像链路：producer 已实现并通过本地/生产快照验证；维护者确认同步服务已部署，正式镜像可匿名读取
+- [x] M2 CLI 核心：MirrorSource、安装引擎及 install/uninstall/upgrade 等命令
+- [x] M3 CLI：login/logout/whoami、publish/status、BackendSource、resolver 降级链、init 与可选安装事件发送已实现并复核
+- [x] M4 分发验收：候选包与正式入口的三种 agent 安装通过；Linux Python 3.10–3.13、POSIX 和 Linux PowerShell 入口通过
+- PDF 解析统一使用 V4 HTTP；自部署需兼容同一协议，Gradio 已移除。
+- [x] 本地构建：Markdown/PDF、宿主及自动判断、断点恢复和显式打包；官方云端解析及配置模型的自动构建已通过真实服务验收
+- [x] 已复现缺陷：缓存串源、跨 agent 升级回滚、构建返回过期请求，以及打包私有文件过滤和嵌套元数据解析均已修复并覆盖回归
+- [ ] 集成与上线：功能分支待合并；配套事件端点待合并、部署及显式启用，客户端端点默认留空
 
-进度须区分已有实现、待验收和外部状态待核实；通用部署检查表的未勾选项不等于未实现。对接后端前核对现有接口，不将旧计划中的接口缺口直接当作当前事实。
+原生 Windows/macOS 和 V4 兼容自部署服务尚未真实部署验收，按验收边界记录。通用环境核查表不是开发待办；已有镜像服务不重复部署。验证记录随功能分支的 `docs/ci.md` 维护。
 
 ## 硬规则
 
-- 运行时以 stdlib 为基线（Python 3.10+）；PDF 拆页与本地 Gradio 可按需惰性加载可选依赖，测试用 unittest 裸跑。
+- 运行时以 stdlib 为基线（Python 3.10+）；PDF 拆页可按需惰性加载 pypdf，测试用 unittest 裸跑。
 - handler 只返回 dict，不自行 print；错误抛 `CliError` 子类，不散落 try/except。
 - 输出契约（JSON 字段名、error code、退出码）发布后只增不改不删。
 - 用户级状态在 `~/.learnova/`；构建配置及任务可位于项目 `.learnova/`，不引入数据库。
