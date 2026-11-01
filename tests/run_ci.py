@@ -30,6 +30,9 @@ def main():
     args = parser.parse_args()
     if args.expected_platform and platform.system() != args.expected_platform:
         parser.error('runner operating system does not match the requested acceptance platform')
+    # Keep fixture reads, child processes and Unicode CLI output deterministic
+    # when invoked locally from a Windows terminal using a legacy code page.
+    os.environ['PYTHONUTF8'] = '1'
     subprocess.run([sys.executable, '-m', 'unittest', 'discover', 'tests', '-v'], cwd=ROOT, check=True)
     subprocess.run([sys.executable, 'tests/t1_mirror_flow.py'], cwd=ROOT, check=True)
     with tempfile.TemporaryDirectory(prefix='learnova-entry-') as temp:
