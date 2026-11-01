@@ -29,6 +29,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    # JSON and localized messages must survive Windows legacy console encodings.
+    if sys.platform == "win32":
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8")
     # 允许 --json 出现在子命令前后任意位置
     argv = [a for a in sys.argv[1:] if a != "--json"]
     as_json = len(argv) != len(sys.argv) - 1
