@@ -20,6 +20,7 @@ learnova-cli install <技能>[@版本] [--project] [--agent a] [--force]
 learnova-cli list [--project]
 learnova-cli uninstall <技能> [--project]
 learnova-cli upgrade [<技能>|--all]
+learnova-cli self-update [--check]
 learnova-cli login | logout | whoami
 learnova-cli publish <目录> --version x.y.z --changelog "..."
 learnova-cli status [<技能>]                        # 提交版本的审核状态
