@@ -12,6 +12,7 @@ from pathlib import Path
 
 from agents import AgentTarget
 from core.errors import CliError, ConflictError
+from core.package_paths import has_unsafe_symlink_ancestor
 from core.frontmatter import parse_frontmatter
 from core.skill import parse_skill_meta, read_install_metadata, validate_skill_dir
 
@@ -126,7 +127,7 @@ def commit_directories(candidate: Path, outputs: list[Path], force: bool = False
         validate_skill_dir(final.name)
         if ".." in final.parts:
             raise CliError("SKILL_CONFLICT", f"目标路径不安全: {final}", exit_code=3)
-        if any(part.is_symlink() for part in (final, *final.parents)):
+        if has_unsafe_symlink_ancestor(final):
             raise CliError("SKILL_CONFLICT", f"目标路径包含符号链接: {final}", exit_code=3)
         key = final.resolve(strict=False)
         if any(key == other or key.is_relative_to(other) or other.is_relative_to(key) for other in keys) or key == candidate.resolve() or key.is_relative_to(candidate.resolve()) or candidate.resolve().is_relative_to(key):

@@ -141,7 +141,8 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(stored["refresh_token"], REFRESH)
         self.assertNotIn("access_token", stored)
         self.assertNotIn(PASSWORD, store.AUTH_PATH.read_text())
-        self.assertEqual(store.AUTH_PATH.stat().st_mode & 0o777, 0o600)
+        if os.name != 'nt':
+            self.assertEqual(store.AUTH_PATH.stat().st_mode & 0o777, 0o600)
         self.assertTrue(auth.has_credentials(self.ctx))
         me = self.fixture.calls[1]
         self.assertEqual(me["headers"].get("Authorization"), "Bearer " + ACCESS)
@@ -397,7 +398,8 @@ class InitTest(unittest.TestCase):
         self.assertEqual(first["status"], "completed")
         input_mock.assert_called_once()
         content = store.CONFIG_PATH.read_bytes()
-        self.assertEqual(store.CONFIG_PATH.stat().st_mode & 0o777, 0o600)
+        if os.name != 'nt':
+            self.assertEqual(store.CONFIG_PATH.stat().st_mode & 0o777, 0o600)
         with patch("builtins.input") as input_mock:
             second = bootstrap.initialize(self.ctx)
         self.assertEqual(first, second)

@@ -189,7 +189,7 @@ class CompletionDefectsTest(unittest.TestCase):
         folder.mkdir()
         text = ('---\nname: sample # valid comment\ndescription: "Quoted # description" # comment\n'
                 'metadata:\n  category: example\n---\nPublic reference.\n')
-        (folder / 'SKILL.md').write_text(text)
+        (folder / 'SKILL.md').write_text(text, newline='\n')
         for path in ('.docker/config.json', '.kube/config', '.azure/accessTokens.json',
                      'tokens.json', 'secrets.yaml', 'service_account.json', 'certificate.p12'):
             target = folder / path
@@ -234,7 +234,7 @@ class CompletionDefectsTest(unittest.TestCase):
                 folder.mkdir()
                 original = ('---\nname: sample\ndescription: Public reference\n' + version_field
                             + 'metadata:\n  version: "internal-tag"\n  name: nested-name\n---\nContent.\n')
-                (folder / 'SKILL.md').write_text(original)
+                (folder / 'SKILL.md').write_text(original, newline='\n')
                 archive, _ = publishing.package(folder)
                 data = io.BytesIO()
                 with zipfile.ZipFile(io.BytesIO(archive)) as zipped, tarfile.open(fileobj=data, mode='w:gz') as tar:

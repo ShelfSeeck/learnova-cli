@@ -67,8 +67,8 @@ class PublishTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.skill = self.root / "sample"
         (self.skill / "references").mkdir(parents=True)
-        (self.skill / "SKILL.md").write_text(SKILL)
-        (self.skill / "references/guide.md").write_text("# Guide\nPortable reference.\n")
+        (self.skill / "SKILL.md").write_text(SKILL, newline="\n")
+        (self.skill / "references/guide.md").write_text("# Guide\nPortable reference.\n", newline="\n")
         self.ctx = CliContext(cwd=self.root, auth={"access_token": "synthetic-access", "refresh_token": "synthetic-refresh"})
         self.fixture = PublishFixture()
         self.me = patch.object(auth, "current_user", return_value={"uuid": "author-one", "username": "sample-user"})
@@ -87,7 +87,7 @@ class PublishTests(unittest.TestCase):
     def test_publish_plain_agent_skill_preserves_current_files_and_submits(self):
         (self.skill / "scripts").mkdir()
         (self.skill / "scripts/example.py").write_text("print('sample')\n")
-        before = {str(p.relative_to(self.skill)): p.read_bytes() for p in self.skill.rglob("*") if p.is_file()}
+        before = {p.relative_to(self.skill).as_posix(): p.read_bytes() for p in self.skill.rglob("*") if p.is_file()}
         result = publishing.publish(self.ctx, "sample", "2.0.0", "Explicit changes")
         self.assertEqual(result["status"], "PENDING_OWNER")
         self.assertTrue(result["submitted"])
@@ -99,7 +99,7 @@ class PublishTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(upload[3]["data"])) as archive:
             self.assertEqual({name: archive.read(name) for name in archive.namelist()}, before)
         self.assertEqual(self.fixture.calls[2][2], {"version": "2.0.0", "changelog": "Explicit changes", "base_submission_id": None, "community_skill_id": None})
-        self.assertEqual(before, {str(p.relative_to(self.skill)): p.read_bytes() for p in self.skill.rglob("*") if p.is_file()})
+        self.assertEqual(before, {p.relative_to(self.skill).as_posix(): p.read_bytes() for p in self.skill.rglob("*") if p.is_file()})
 
     def test_package_excludes_private_credentials_vcs_and_management_state(self):
         for directory in (".git", ".learnova", ".codex", ".superpowers"):
@@ -114,7 +114,7 @@ class PublishTests(unittest.TestCase):
 
     def test_yaml_folded_description_and_nested_metadata_are_accepted(self):
         text = SKILL.replace("description: A portable sample skill", "description: >-\n  A portable\n  sample skill")
-        (self.skill / "SKILL.md").write_text(text)
+        (self.skill / "SKILL.md").write_text(text, newline="\n")
         data, metadata = publishing.package(self.skill)
         self.assertEqual(metadata["description"], "A portable sample skill")
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
@@ -124,7 +124,7 @@ class PublishTests(unittest.TestCase):
         for text in ("not frontmatter", SKILL.replace("name: sample", "name: ../outside"),
                      SKILL.replace("description: A portable sample skill\n", ""), SKILL.replace("references/guide.md", "../private.md"),
                      SKILL.replace("references/guide.md", "references/missing.md"), SKILL.replace("name: sample", "name: sample\nname: another")):
-            (self.skill / "SKILL.md").write_text(text)
+            (self.skill / "SKILL.md").write_text(text, newline="\n")
             self.assert_code("PUBLISH_PACKAGE_INVALID", lambda: publishing.publish(self.ctx, "sample", "2.0.0", "Changes"))
         self.assert_code("PUBLISH_PACKAGE_INVALID", lambda: publishing.package(self.root / "absent"))
         self.assertEqual(self.fixture.calls, [])

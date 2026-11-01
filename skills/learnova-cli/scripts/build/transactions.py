@@ -11,6 +11,7 @@ from pathlib import Path
 import engine
 import store
 from core.errors import CliError
+from core.package_paths import has_unsafe_symlink_ancestor
 
 
 def _error():
@@ -77,7 +78,7 @@ def _original_hash(root):
 
 
 def _safe_final(final):
-    if any(part.is_symlink() for part in (final, *final.parents)):
+    if has_unsafe_symlink_ancestor(final):
         _error()
 
 

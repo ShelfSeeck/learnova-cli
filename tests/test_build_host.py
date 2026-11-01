@@ -70,7 +70,7 @@ class RuleVersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, patch.object(store, 'LEARNOVA_HOME', Path(tmp) / 'home'):
             root = Path(tmp)
             source = root / 'input.md'
-            source.write_text('# Topic\n\nContent.\n')
+            source.write_text('# Topic\n\nContent.\n', newline='\n')
             service = BuildService(root)
             task = service.create(source)['task_id']
             old = service.next(task)['request']
@@ -140,7 +140,7 @@ class HostBuildTest(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.env = {**os.environ, 'HOME': str(self.root), 'LEARNOVA_HOME': str(self.root / 'home')}
         self.source = self.root / 'source.md'
-        self.source.write_text('# Alpha\n\nFirst.\n\n# Beta\n\nSecond.\n', encoding='utf-8')
+        self.source.write_text('# Alpha\n\nFirst.\n\n# Beta\n\nSecond.\n', encoding='utf-8', newline='\n')
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -574,7 +574,7 @@ class ProviderAndRefinementTest(unittest.TestCase):
                 root = Path(tmp) / 'recursive'
                 root.mkdir()
                 source = root / 'input.md'
-                source.write_text('# One\n\n' + 'a' * 80 + '\n\n# Two\n\n' + 'b' * 80 + '\n\n# Three\n\n' + 'c' * 80 + '\n')
+                source.write_text('# One\n\n' + 'a' * 80 + '\n\n# Two\n\n' + 'b' * 80 + '\n\n# Three\n\n' + 'c' * 80 + '\n', newline='\n')
                 svc = BuildService(root)
                 task = svc.create(source)['task_id']
                 svc.reconfigure(task, {'min_tokens': '0', 'max_tokens': '5'})

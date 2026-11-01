@@ -209,7 +209,7 @@ class FinalBuildTests(unittest.TestCase):
         output = Path(service.run(task)['result_path'])
         original = self.saved(task)
         ref = next((output / 'references').glob('*.md'))
-        ref.write_text('Edited reference.\n')
+        ref.write_text('Edited reference.\n', newline='\n')
         (output / 'SKILL.md').write_text('---\nname: edited-skill\ndescription: Current content\n---\n[Guide](README.md)\n')
         (output / 'README.md').write_text('[Resource](resources/new.txt)\n![Figure](resources/figure.png)\n[Contact](mailto:example@example.invalid)\n')
         (output / 'resources').mkdir()
@@ -273,9 +273,13 @@ class FinalBuildTests(unittest.TestCase):
             with self.assertRaises(CliError):
                 service.package(task)
             unsafe.unlink()
-        (output / 'a:b.txt').write_text('unsafe name')
-        with self.assertRaises(CliError):
-            service.package(task)
+        if os.name == 'nt':
+            # Windows does not allow creating this filename on disk.
+            self.assertFalse(skill_build._safe_path('a:b.txt'))
+        else:
+            (output / 'a:b.txt').write_text('unsafe name')
+            with self.assertRaises(CliError):
+                service.package(task)
 
     def test_package_rejects_actual_invalid_frontmatter(self):
         service, task = self.create()
