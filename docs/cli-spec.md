@@ -1,6 +1,6 @@
 # CLI 规范
 
-Learnova CLI 的行为规范。实现架构（模块划分与设计模式）另行约定后补充。
+Learnova CLI 的行为规范。实现架构见 [architecture.md](architecture.md)。
 
 ## 1. 运行形态
 
@@ -106,7 +106,7 @@ login（用户亲自执行）
   → status 查询审核状态与驳回备注
 ```
 
-- 发布复用后端现有上传/发布接口；审核状态查询依赖后端提供的 publish-status 接口。
+- 发布复用后端现有上传/发布接口；审核状态与驳回备注优先复用现有查询与审核记录接口，接入前核对实际契约和部署版本。
 - 发布成功后技能内容经审核上架，由镜像同步进入 git 仓，CLI 用户即可检索安装。
 
 项目级 `list`、`uninstall` 和 `upgrade` 合并所选 agent 的项目目录与 `.agents/skills/`，按物理路径去重；无 agent 对应统一目录时标记为 `project`。用户级默认范围和 install 目标不变。清单新增 `source`：有效且目录名匹配的 `.learnova-install.json`（含原有 dir/version 格式）为 `community`，优先于构建记录；否则 schema 1 或 2、source 为 `local-build` 的 `.learnova-build.json` 表示 `local-build`，其余为 `unknown`。社区升级只处理物理目录中来源为 `community` 的副本，跳过其他来源；旧 frontmatter 包仍可查看和卸载，需显式 `install --force` 才能建立社区来源。

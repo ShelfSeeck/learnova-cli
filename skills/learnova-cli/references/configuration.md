@@ -13,11 +13,11 @@
 
 ```bash
 python "<skill-dir>/scripts/learnova.py" config --json
-python "<skill-dir>/scripts/learnova.py" config get <key> --json
+python "<skill-dir>/scripts/learnova.py" config get --json
 python "<skill-dir>/scripts/learnova.py" config set <key> <value> --json
 ```
 
-当前相关配置包括：
+`config` 和 `config get` 均返回完整配置，不支持按键读取。当前相关配置包括：
 
 - `mirror_repo_url`：Git 镜像仓地址。
 - `agents`：限制自动检测的 Agent 集合。

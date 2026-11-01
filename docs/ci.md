@@ -2,6 +2,8 @@
 
 本文是 learnova-cli 持续集成的实施规格，面向接手实现的人。读完应能直接动手，不需要再问设计问题。
 
+正式主仓位于南大 GitLab。现有 `.github/workflows/` 是 GitHub Actions 参考实现，不能据此认定主仓已经或尚未接通 CI；须核实实际触发方式和运行记录。同步 GitHub 不是验收前提，其他 CI 平台可采用等价的测试矩阵和变量配置。
+
 ## 1. 目标与通过标准
 
 验证工具在各目标环境（Linux / macOS / Windows + PowerShell，Python 3.10–3.13）下可用。
@@ -41,7 +43,7 @@ T0/T1 不需要任何密钥——fork 仓 PR 拿不到 secrets 也必须能过�
 
 测试账号由维护者在后端创建一个低权限普通账号，仅用于 CI。
 
-## 5. 流水线设计（GitHub Actions）
+## 5. 流水线参考实现（GitHub Actions）
 
 触发：`push` 到 main + PR。另设 `schedule`（每日）跑真实 GitLab 冒烟。
 
@@ -77,6 +79,8 @@ CI 全程用 uv 提供 Python（与主项目一致），但**测试本身用 `py
 - [x] 编写 `tests/t1_mirror_flow.py`：stub 生命周期管理 + 命令断言（search 出结果、install 落地文件正确、list 重建、upgrade 识别新版本、uninstall 清理）
 - [x] 编写 `.github/workflows/ci.yml`（test 矩阵 + backend-integration）
 - [x] 编写 `.github/workflows/gitlab-smoke.yml`（schedule）
+- [ ] 核实正式主仓的 CI 触发与运行记录，完成 T0/T1 多平台矩阵与镜像冒烟验收
+- [ ] 实现 `tests/test_backend*.py`；当前 backend-integration 仅为占位，零用例不代表后端链路通过
 - [ ] 维护者在后端创建测试账号，配置 §4 的 Variable 与 Secrets
 - [ ] Windows 作业实测 PowerShell 入口
 

@@ -51,4 +51,5 @@ Windows PowerShell 使用：
 
 - 默认非交互，优先让 Agent 自己完成检索、详情读取和安装。
 - 同名 Skill 冲突默认停止；只有用户明确要求覆盖时才使用 `--force`。
-- 尚未实现的 `init`、`login`、`logout`、`whoami`、`publish`、`status` 不要调用。
+- 尚未实现的 `init`、`login`、`publish`、`status` 不要调用。
+- `whoami` 仅查看本地保存的登录状态，不验证线上凭证；`logout` 仅清除本地凭证。用户要求时可调用，不据此宣称完整账号链路已可用。

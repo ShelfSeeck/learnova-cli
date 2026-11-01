@@ -15,12 +15,14 @@ python "<skill-dir>/scripts/learnova.py" <command> [args] --json
 | 卸载 | `uninstall <skill> [--project]` |
 | 升级单个 | `upgrade <skill> [--project]` |
 | 升级全部 | `upgrade --all [--project]` |
-| 查看配置 | `config` 或 `config get [key]` |
+| 查看配置 | `config` 或 `config get` |
 | 修改配置 | `config set <key> <value>` |
+| 查看本地登录状态 | `whoami` |
+| 清除本地凭证 | `logout` |
 
 `--json` 可以放在子命令前后任意位置。
 
-当前不要调用 `init`、`login`、`logout`、`whoami`、`publish`、`status`；这些命令名已保留，但对应线上能力尚未实现。
+当前不要调用 `init`、`login`、`publish`、`status`；这些命令仍为空实现。`whoami` 仅查看本地凭证状态，不验证线上有效性；`logout` 仅清除本地凭证。
 
 如果需要理解命令应该在什么场景使用，优先读取相应 workflow 文档，不要只靠本页参数表推断行为。
 

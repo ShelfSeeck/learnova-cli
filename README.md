@@ -8,7 +8,7 @@ Learnova 技能社区的命令行入口，以 agent skill 形式分发。
 
 ## 安装
 
-`learnova-cli` 作为独立 Skill 放在 `skills/learnova-cli/`，推荐安装到用户级：
+正式维护与分发仓库为 [learnova-cli](https://git.nju.edu.cn/learnova/learnova-cli)。Skill 放在 `skills/learnova-cli/`，推荐安装到用户级：
 
 ```bash
 npx skills add https://git.nju.edu.cn/learnova/learnova-cli.git \
@@ -17,12 +17,6 @@ npx skills add https://git.nju.edu.cn/learnova/learnova-cli.git \
 ```
 
 如只希望当前项目使用，去掉 `--global`。
-
-仓库也保留 GitHub remote，可使用：
-
-```bash
-npx skills add ShelfSeeck/learnova-cli --skill learnova-cli --global
-```
 
 安装后 agent 会按 Skill 内的 `SKILL.md` 指引调用脚本。开发仓中也可直接运行：
 

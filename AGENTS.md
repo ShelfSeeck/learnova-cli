@@ -2,6 +2,8 @@
 
 Learnova 技能社区的分发工具（learnova-cli），以 agent skill 形式经 `npx skills` 分发，功能由纯 Python 脚本实现。
 
+正式主仓与分发入口为 `https://git.nju.edu.cn/learnova/learnova-cli`，当前 `main` 跟踪 `njugit/main`。`origin` 是保留的 GitHub remote；同步 GitHub 不是主仓开发或发行的前置条件。
+
 ## 先读文档
 
 改动任何代码前，按序阅读：
@@ -16,13 +18,18 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 
 ## 开发进度
 
-- [x] 设计文档（cli-spec / mirror-spec / architecture）+ 按架构的 scripts 骨架
-- [ ] M1 镜像链路：`mirror/` producer 核心已实现并通过本地/生产快照验证；待初始化正式镜像仓并部署调度
-- [x] M2 CLI 核心：MirrorSource、engine.install/uninstall、install/uninstall/upgrade 命令
-- [ ] M3 账号与发布：login/publish/status、遥测、BackendSource、resolver 降级链、init
-- [ ] M4 发布：GitHub 建仓、`npx skills add` 验证、PowerShell 实测
+功能补全已在 `codex/complete-cli` 实现并验收，目前待合入 `main`。下列完成项包含该功能分支，不能据此认定主分支已发行或配套服务已上线。
 
-- [x] 本地文档构建：Markdown/PDF、宿主及自动判断、断点恢复和显式打包；真实服务认证验收待完成
+- [x] 设计文档与 scripts 架构
+- [x] M1 镜像链路：producer 已实现并通过本地/生产快照验证；维护者确认同步服务已部署，正式镜像可匿名读取
+- [x] M2 CLI 核心：MirrorSource、安装引擎及 install/uninstall/upgrade 等命令
+- [x] M3 CLI：login/logout/whoami、publish/status、BackendSource、resolver 降级链、init 与可选安装事件发送已实现并复核
+- [x] M4 分发验收：候选包与正式入口的三种 agent 安装通过；Linux Python 3.10–3.13、POSIX 和 Linux PowerShell 入口通过
+- [x] 本地构建：Markdown/PDF、宿主及自动判断、断点恢复和显式打包；官方云端解析及配置模型的自动构建已通过真实服务验收
+- [x] 已复现缺陷：缓存串源、跨 agent 升级回滚、构建返回过期请求，以及打包私有文件过滤和嵌套元数据解析均已修复并覆盖回归
+- [ ] 集成与上线：功能分支待合并；配套事件端点待合并、部署及显式启用，客户端端点默认留空
+
+原生 Windows/macOS 和本地 Gradio 的真实部署尚未实测，按验收边界记录。通用环境核查表不是开发待办；已有镜像服务不重复部署。验证记录随功能分支的 `docs/ci.md` 维护。
 
 ## 硬规则
 
@@ -31,7 +38,7 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 - 输出契约（JSON 字段名、error code、退出码）发布后只增不改不删。
 - 用户级状态在 `~/.learnova/`；构建配置及任务可位于项目 `.learnova/`，不引入数据库。
 - 遥测默认不收集，仅登录后上报 install 事件，fire-and-forget。
-- 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端/镜像地址默认值发行时注入，源码留空。
+- 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端地址默认值发行时注入，源码留空。镜像地址保留源码中的公开正式默认值，允许用户配置覆盖。
 - 提交前跑 `python -m unittest discover tests -v`；镜像链路测试另跑 `python tests/t1_mirror_flow.py`。
 
 ## 目录速查

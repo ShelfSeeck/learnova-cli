@@ -439,14 +439,14 @@ python skills/learnova-cli/scripts/learnova.py list
 | index schema 改动 | 提升 `schema_version`，同步修改 CLI |
 | 镜像仓被误改 | 不继续手修，从 Learnova 数据重新生成 |
 
-## 7. 账号与发布功能暂时不需要准备
+## 7. 账号与发布接入准备
 
 开始接入账号、在线后端检索和发布功能时再处理：
 
 - Learnova CLI 测试账号。
 - 正式 `backend_url`。
 - CLI 登录和 refresh 凭证方式。
-- publish-status 接口。
+- 核对现有发布状态查询与审核备注接口，优先复用，不预设需要新增 publish-status 接口。
 - install telemetry 接口。
 - Backend 与 Mirror 的在线回退。
 
@@ -454,7 +454,7 @@ python skills/learnova-cli/scripts/learnova.py list
 
 ## 8. 镜像同步上线前检查表
 
-开始实现和部署同步程序前，确认：
+本表用于逐个部署环境核对，不代表对应功能尚未实现。正式镜像已建立且可匿名读取；生产调度和自动更新是否完成验收，须检查部署记录。首次配置或复查部署时确认：
 
 - [ ] 已创建一个空的 monorepo 镜像仓。
 - [ ] 默认分支为 `main`，force push 已关闭。
@@ -469,4 +469,4 @@ python skills/learnova-cli/scripts/learnova.py list
 - [ ] 同步程序只投影 APPROVED Skill。
 - [ ] 已准备首次端到端测试 Skill。
 
-这些条件齐全后，再开始镜像同步程序的实际开发和部署。
+这些条件齐全后，可部署现有同步程序，并执行自动更新与失败恢复验收。
