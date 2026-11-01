@@ -574,7 +574,7 @@ class ProviderAndRefinementTest(unittest.TestCase):
                 root = Path(tmp) / 'recursive'
                 root.mkdir()
                 source = root / 'input.md'
-                source.write_text('# One\n\n' + 'a' * 80 + '\n\n# Two\n\n' + 'b' * 80 + '\n\n# Three\n\n' + 'c' * 80 + '\n')
+                source.write_text('# One\n\n' + 'a' * 80 + '\n\n# Two\n\n' + 'b' * 80 + '\n\n# Three\n\n' + 'c' * 80 + '\n', newline='\n')
                 svc = BuildService(root)
                 task = svc.create(source)['task_id']
                 svc.reconfigure(task, {'min_tokens': '0', 'max_tokens': '5'})
