@@ -121,6 +121,8 @@ login（用户亲自执行）
 
 `login` 由用户在真实终端输入邮箱和密码，不接受密码命令行参数；非终端调用返回 `BAD_USAGE` 和亲自登录的提示。登录使用后端当前 access token 与 refresh Cookie 协议；凭证仅保存于权限 600 的 auth.json，并绑定后端 origin。刷新成功原子保存轮换凭证，后端地址改变时不得向新 origin 发送旧凭证。输出不含 token、Cookie 或密码。
 
+CLI 使用已有账号，当前不提供账号注册命令。
+
 `whoami` 保留 `logged_in`、`username` 字段；无凭证时返回未登录，有凭证时查询当前账号。`logout` 尝试吊销后清除本地凭证；后端不可达也允许完成本地退出，保留 `ok`、`message` 字段。
 
 `init` 检测 agent 并展示配置，用户终端确认后保存；已有有效配置可重复使用，不覆盖显式配置。非交互环境不等待输入，返回 `status=needs_input`、`kind=configuration`、`questions`；已完成初始化返回配置摘要。默认镜像无需额外配置，登录不作为镜像使用的前置条件。
