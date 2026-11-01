@@ -14,7 +14,7 @@ import auth
 from core.errors import CliError
 from core.frontmatter import parse_frontmatter
 from core import skill_build
-from core.package_paths import is_private_path
+from core.package_paths import is_private_path, has_unsafe_symlink_ancestor
 
 MAX_PACKAGE_BYTES = 40 * 1024 * 1024
 MAX_PACKAGE_FILES = 2000
@@ -76,7 +76,7 @@ def package(directory):
     """Snapshot safe regular files into memory; never rewrite the source directory."""
     root = Path(directory).absolute()
     try:
-        if not root.is_dir() or root.is_symlink() or any(parent.is_symlink() for parent in root.parents):
+        if not root.is_dir() or has_unsafe_symlink_ancestor(root):
             _package_invalid()
         files, size = {}, 0
 
