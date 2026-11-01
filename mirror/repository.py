@@ -149,6 +149,9 @@ class MirrorRepository:
             shutil.rmtree(target)
 
     def commit_publish(self, *, skill_dir: str, community_id: str, version: str) -> str:
+        # Each publish commit must store this version's real contents, including
+        # when consecutive versions have equal-size files and racy timestamps.
+        self._run("rm", "-r", "--cached", "--ignore-unmatch", "--", skill_dir)
         self._run("add", "-A", "--", skill_dir)
         message = (
             f"Learnova-Community-Id: {community_id}\n"
