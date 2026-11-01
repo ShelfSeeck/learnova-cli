@@ -67,7 +67,7 @@ learnova-cli config [get] | config set <键> <值>
 
 | 键 | 默认值 | 说明 |
 |---|---|---|
-| `backend_url` | 发行时内置 | 后端 API 根地址 |
+| `backend_url` | `https://ta.njunova.com` | 内置后端 API 根地址，用户配置可覆盖；旧版配置中的空值按默认地址处理 |
 | `mirror_repo_url` | `https://git.nju.edu.cn/learnova/skills-mirror` | git 镜像仓地址；用户配置可覆盖 |
 | `telemetry` | `auto`（跟随登录态） | `off` 时登录也不上报 |
 | `telemetry_endpoint` | 空 | 独立安装事件接口的同源绝对路径；部署提供接口后配置，未配置不发送 |
@@ -77,7 +77,7 @@ learnova-cli config [get] | config set <键> <值>
 
 ## 5. 检索策略
 
-- 配置后端且有可用登录凭证时优先调后端 API；未配置后端或未登录时直接使用镜像源。
+- 默认内置正式后端地址；有可用登录凭证时优先调后端 API，未登录时直接使用镜像源。旧版 `init` 保存的空 `backend_url` 在运行时使用内置默认值，非空自定义地址始终优先。
 - 后端不可达时降级镜像源；镜像源优先使用未过期的本地 index 缓存，需要时联网刷新。
 - `search --offline` 为**严格离线**：只读取已有 `index_cache.json`，不访问后端或 GitLab；没有缓存时直接报错。
 - 索引缓存绑定产生它的镜像地址；切换镜像时不得使用旧源缓存。旧格式无来源缓存可用于原默认镜像兼容读取，切换到其他镜像须重新获取。
