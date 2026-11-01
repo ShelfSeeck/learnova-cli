@@ -21,7 +21,7 @@ python "<skill-dir>/scripts/learnova.py" config set <key> <value> --json
 `config` 和 `config get` 均返回完整配置，不支持按键读取。当前相关配置包括：
 
 - `mirror_repo_url`：Git 镜像仓地址。
-- `backend_url`：部署提供的 API 根地址，源码默认留空；账号及发布需要配置。
+- `backend_url`：默认 `https://ta.njunova.com`，可通过 `config set backend_url <地址>` 覆盖；旧版初始化保存的空地址自动使用默认值。
 - `agents`：限制自动检测的 Agent 集合。
 - `install_scope`：install 的默认安装层级。
 - `index_cache_ttl`：索引缓存有效期，单位秒。
@@ -30,7 +30,7 @@ python "<skill-dir>/scripts/learnova.py" config set <key> <value> --json
 
 ## 镜像与离线搜索
 
-配置后端且有可用登录凭证时优先在线源，否则使用镜像。后端连接、服务端或认证错误可回退镜像；技能不存在、响应非法或包校验失败会保留错误。镜像优先使用有效缓存，需要刷新时读取 `index.json`。缓存绑定镜像来源，切换地址后须获取新索引。
+有可用登录凭证时优先在线源，否则使用镜像。后端连接、服务端或认证错误可回退镜像；技能不存在、响应非法或包校验失败会保留错误。镜像优先使用有效缓存，需要刷新时读取 `index.json`。缓存绑定镜像来源，切换地址后须获取新索引。
 
 ```bash
 python "<skill-dir>/scripts/learnova.py" search "<keyword>" --offline --json
