@@ -40,7 +40,7 @@ docs/ 回答「是什么」，`internal/plan.md` 回答「为什么」和「接�
 - 输出契约（JSON 字段名、error code、退出码）发布后只增不改不删。
 - 用户级状态在 `~/.learnova/`；构建配置及任务可位于项目 `.learnova/`，不引入数据库。
 - 遥测默认不收集，仅登录后上报 install 事件，fire-and-forget。
-- 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端地址默认值发行时注入，源码留空。镜像地址保留源码中的公开正式默认值，允许用户配置覆盖。
+- 公开内容（代码、文档、commit）不得提及 Learnova 主仓的内部细节；后端与镜像地址均内置公开正式默认值，允许用户配置覆盖。不得提交凭证或内部部署细节。
 - 提交前跑 `python -m unittest discover tests -v`；镜像链路测试另跑 `python tests/t1_mirror_flow.py`。
 
 ## 目录速查

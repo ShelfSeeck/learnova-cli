@@ -26,7 +26,7 @@ python "<skill-dir>/scripts/learnova.py" <command> [args] --json
 
 `--json` 可以放在子命令前后任意位置。
 
-账号及发布需要配置 `backend_url`。`login` 必须由本人在真实终端运行；`whoami` 有凭证时验证线上账号，`logout` 尝试吊销并清除本地凭证。发布成功表示提交审核。细节见 [accounts.md](accounts.md)。
+账号及发布默认使用 `https://ta.njunova.com`；如需其他服务器，可通过 `config set backend_url <地址>` 覆盖。`login` 必须由本人在真实终端运行；`whoami` 有凭证时验证线上账号，`logout` 尝试吊销并清除本地凭证。发布成功表示提交审核。细节见 [accounts.md](accounts.md)。
 
 如果需要理解命令应该在什么场景使用，优先读取相应 workflow 文档，不要只靠本页参数表推断行为。
 

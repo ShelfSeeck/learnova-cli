@@ -4,7 +4,7 @@ Learnova 技能社区的命令行入口，以 agent skill 形式分发。
 
 支持从 Markdown 或 PDF 构建本地知识参考型 Skill；详见 [构建指南](skills/learnova-cli/references/building.md)。PDF 与自动模式需要用户配置解析服务和模型。
 
-可检索、查看、安装、升级和卸载社区技能。未登录时使用 Git 镜像；配置后端并登录后优先在线检索，后端不可用时按错误类型回退镜像。也支持初始化、账号登录、提交发布和查询审核状态。
+可检索、查看、安装、升级和卸载社区技能。未登录时使用 Git 镜像；登录后优先在线检索，后端不可用时按错误类型回退镜像。也支持初始化、账号登录、提交发布和查询审核状态。
 
 ## 安装
 
@@ -39,10 +39,9 @@ python skills/learnova-cli/scripts/learnova.py config set mirror_repo_url <镜�
 
 完整命令表、参数与默认行为见 [docs/cli-spec.md](docs/cli-spec.md)。
 
-需要账号或发布时，先配置部署提供的 API 根地址，再由本人在终端登录：
+账号与发布默认连接 `https://ta.njunova.com`，由本人在终端登录；需要其他后端时可通过 `config set backend_url <地址>` 覆盖：
 
 ```bash
-python skills/learnova-cli/scripts/learnova.py config set backend_url https://api.example.invalid
 python skills/learnova-cli/scripts/learnova.py login
 python skills/learnova-cli/scripts/learnova.py whoami
 python skills/learnova-cli/scripts/learnova.py publish ./sample-skill --version 1.0.0 --changelog "Initial release"

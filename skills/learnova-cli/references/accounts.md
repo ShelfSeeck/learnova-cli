@@ -1,9 +1,9 @@
 # 账号与发布
 
-镜像检索和安装无需登录。账号、在线源与发布需要部署提供的 `backend_url`；示例地址仅为占位符：
+镜像检索和安装无需登录。账号、在线源与发布默认连接 `https://ta.njunova.com`，无需手动设置地址。需要连接其他部署时可覆盖 `backend_url`：
 
 ```bash
-python "<skill-dir>/scripts/learnova.py" config set backend_url https://api.example.invalid --json
+python "<skill-dir>/scripts/learnova.py" config set backend_url https://your-api.example --json
 ```
 
 ## 初始化和登录

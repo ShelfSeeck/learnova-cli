@@ -21,10 +21,11 @@ CONFIG_PATH = LEARNOVA_HOME / "config.json"
 AUTH_PATH = LEARNOVA_HOME / "auth.json"
 INDEX_CACHE_PATH = LEARNOVA_HOME / "index_cache.json"
 
+DEFAULT_BACKEND_URL = "https://ta.njunova.com"
 DEFAULT_MIRROR_REPO_URL = "https://git.nju.edu.cn/learnova/skills-mirror"
 
 DEFAULTS = {
-    "backend_url": "",          # 发行时填入默认值
+    "backend_url": DEFAULT_BACKEND_URL,
     "mirror_repo_url": DEFAULT_MIRROR_REPO_URL,
     "telemetry": "auto",        # auto=跟随登录态 / off=关闭
     "telemetry_endpoint": "",   # 独立安装事件接口的同源绝对路径；未配置不发送
@@ -80,7 +81,10 @@ def _validate_config(config: dict, code: str, exit_code: int = 1) -> dict:
 
 
 def load_config() -> dict:
-    return _validate_config({**DEFAULTS, **_read_json(CONFIG_PATH)}, "LOCAL_STATE_INVALID")
+    data = _read_json(CONFIG_PATH)
+    if data.get("backend_url") == "":
+        data["backend_url"] = DEFAULT_BACKEND_URL
+    return _validate_config({**DEFAULTS, **data}, "LOCAL_STATE_INVALID")
 
 
 def _parse_config_value(key: str, value: str):
