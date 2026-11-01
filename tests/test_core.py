@@ -103,6 +103,20 @@ class SkillMetadataTest(unittest.TestCase):
 
 
 class StoreConfigTest(unittest.TestCase):
+    def test_backend_default_legacy_empty_and_override(self):
+        original = store.CONFIG_PATH
+        with tempfile.TemporaryDirectory() as tmp:
+            store.CONFIG_PATH = Path(tmp) / "config.json"
+            try:
+                self.assertEqual(store.load_config()["backend_url"], "https://ta.njunova.com")
+                store._write_json(store.CONFIG_PATH, {"backend_url": ""})
+                self.assertEqual(store.load_config()["backend_url"], "https://ta.njunova.com")
+                self.assertEqual(store._read_json(store.CONFIG_PATH)["backend_url"], "")
+                store.set_config_value("backend_url", "https://custom.example.test")
+                self.assertEqual(store.load_config()["backend_url"], "https://custom.example.test")
+            finally:
+                store.CONFIG_PATH = original
+
     def test_default_mirror_and_user_override(self):
         original = store.CONFIG_PATH
         with tempfile.TemporaryDirectory() as tmp:
